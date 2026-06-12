@@ -25,6 +25,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const fitScheduled = useRef(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [dragState, setDragState] = useState<{
     fieldId: string;
     startX: number;
@@ -39,7 +41,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   // Auto-fit function
   const handleFit = () => {
     if (!template || !containerRef.current) return;
-    const containerW = containerRef.current.clientWidth - 48; // padding padding
+    const containerW = containerRef.current.clientWidth - 48;
     const containerH = containerRef.current.clientHeight - 48;
     const scaleW = containerW / template.width;
     const scaleH = containerH / template.height;
@@ -60,6 +62,38 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     handleFit();
     return () => observer.disconnect();
   }, [template]);
+
+  // Render PDF first page as image preview
+  useEffect(() => {
+    if (template?.type !== 'pdf') { setPdfPreviewUrl(null); return; }
+    let cancelled = false;
+    setPdfLoading(true);
+
+    (async () => {
+      try {
+        const pdfjs = await import('pdfjs-dist');
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+
+        const pdf = await pdfjs.getDocument({ url: template.previewUrl }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.5 });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d')!;
+        await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+
+        if (!cancelled) setPdfPreviewUrl(canvas.toDataURL());
+      } catch {
+        if (!cancelled) setPdfPreviewUrl(null);
+      } finally {
+        if (!cancelled) setPdfLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [template?.id]);
 
   // Handles starting drag/resize operations
   const handleMouseDown = (
@@ -155,7 +189,6 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     };
   }, [dragState, scale, template, fields]);
 
-  // If no template is loaded, show a friendly placeholder
   if (!template) {
     return (
       <div className="editor-workspace">
@@ -213,15 +246,26 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
             height: `${canvasHeight}px`,
           }}
         >
-          {template.type === 'pdf' ? (
-            // PDF Page Placeholder background
-            <div className="canvas-bg-pdf" style={{ display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center' }}>
+          {template.type === 'pdf' && pdfLoading ? (
+            <div className="canvas-bg-pdf" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ color: 'var(--text-light)', fontSize: '0.9rem', fontWeight: 500 }}>
-                📄 Первая страница PDF-шаблона
+                ⏳ Загрузка PDF...
+              </span>
+            </div>
+          ) : template.type === 'pdf' && pdfPreviewUrl ? (
+            <img 
+              className="canvas-bg-img" 
+              src={pdfPreviewUrl} 
+              alt="PDF шаблон" 
+              style={{ width: '100%', height: '100%' }}
+            />
+          ) : template.type === 'pdf' ? (
+            <div className="canvas-bg-pdf" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: 'var(--text-light)', fontSize: '0.9rem', fontWeight: 500 }}>
+                PDF не удалось загрузить для предпросмотра
               </span>
             </div>
           ) : (
-            // PNG / JPG background
             <img 
               className="canvas-bg-img" 
               src={template.previewUrl} 
@@ -230,12 +274,10 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
             />
           )}
 
-          {/* Render Text Fields */}
           {fields.map((field) => {
             const isActive = field.id === activeFieldId;
             const textValue = currentRowData[field.excelColumn] || `{${field.excelColumn}}`;
             
-            // Map text alignments
             const getTextAlignStyle = () => {
               if (field.align === 'center') return 'center';
               if (field.align === 'right') return 'right';
@@ -269,7 +311,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                     justifyContent: getTextAlignStyle() === 'center' ? 'center' : getTextAlignStyle() === 'right' ? 'flex-end' : 'flex-start',
                     color: field.fontColor,
                     fontSize: `${field.fontSize * scale}px`,
-                    fontFamily: 'inherit', // Standard screen rendering preview
+                    fontFamily: 'inherit',
                     textAlign: getTextAlignStyle(),
                     lineHeight: field.lineHeight || 1.2,
                     fontWeight: field.bold ? 'bold' : 'normal',
