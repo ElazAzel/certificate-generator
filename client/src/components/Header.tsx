@@ -8,6 +8,7 @@ interface HeaderProps {
   onReset: () => void;
   uploadedFonts: { id: string; fileName: string; fontName: string }[];
   isConfigLoaded: boolean;
+  showToast: (msg: string, type: 'success' | 'error') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +18,7 @@ export const Header: React.FC<HeaderProps> = ({
   onReset,
   uploadedFonts,
   isConfigLoaded,
+  showToast,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
@@ -33,10 +35,10 @@ export const Header: React.FC<HeaderProps> = ({
         if (config.version && config.fields) {
           onLoadConfig(config);
         } else {
-          alert('Неверный формат JSON-конфигурации');
+          showToast('Неверный формат JSON-конфигурации', 'error');
         }
       } catch {
-        alert('Ошибка при чтении файла конфигурации');
+        showToast('Ошибка при чтении файла конфигурации', 'error');
       }
     };
     reader.readAsText(file);

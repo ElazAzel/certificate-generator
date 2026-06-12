@@ -34,6 +34,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         <div 
           className={excelName ? 'upload-box uploaded' : 'upload-box'}
           onClick={() => excelRef.current?.click()}
+          tabIndex={0}
+          role="button"
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') excelRef.current?.click(); }}
         >
           <div className="upload-icon" style={excelName ? { color: 'var(--success-color)' } : {}}>📊</div>
           <div className="upload-title">
@@ -63,6 +66,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         <div 
           className={templateName ? 'upload-box uploaded' : 'upload-box'}
           onClick={() => templateRef.current?.click()}
+          tabIndex={0}
+          role="button"
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') templateRef.current?.click(); }}
         >
         <div className="upload-icon" style={templateName ? { color: 'var(--success-color)' } : {}}>🖼️</div>
         <div className="upload-title">

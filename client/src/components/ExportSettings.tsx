@@ -35,32 +35,29 @@ export const ExportSettings: React.FC<ExportSettingsProps> = ({
           </select>
         </div>
 
-        {config.mode === 'separate' ? (
-          <div className="form-group" style={{ flex: 1 }}>
-            <label>Шаблон имени файла (например, <code>{"{name}_{certificate_number}.pdf"}</code>)</label>
-            <input 
-              type="text" 
-              className="input-control" 
-              value={config.fileNameTemplate}
-              onChange={(e) => onUpdateConfig({ fileNameTemplate: e.target.value })}
-              placeholder="{name}.pdf"
-            />
-          </div>
-        ) : (
-          <div className="form-group" style={{ flex: 1 }}>
-            <label>Имя общего PDF-файла</label>
-            <input 
-              type="text" 
-              className="input-control" 
-              value={config.combinedFileName}
-              onChange={(e) => onUpdateConfig({ combinedFileName: e.target.value })}
-              placeholder="certificates_all.pdf"
-            />
-          </div>
-        )}
+        <div className="form-group" style={{ flex: 1, display: config.mode === 'separate' ? 'flex' : 'none' }}>
+          <label>Шаблон имени файла (например, <code>{"{name}_{certificate_number}.pdf"}</code>)</label>
+          <input 
+            type="text" 
+            className="input-control" 
+            value={config.fileNameTemplate}
+            onChange={(e) => onUpdateConfig({ fileNameTemplate: e.target.value })}
+            placeholder="{name}.pdf"
+          />
+        </div>
+        <div className="form-group" style={{ flex: 1, display: config.mode === 'combined' ? 'flex' : 'none' }}>
+          <label>Имя общего PDF-файла</label>
+          <input 
+            type="text" 
+            className="input-control" 
+            value={config.combinedFileName}
+            onChange={(e) => onUpdateConfig({ combinedFileName: e.target.value })}
+            placeholder="certificates_all.pdf"
+          />
+        </div>
 
         <div className="form-group" style={{ width: '240px' }}>
-          <label>Папка сохранения (на сервере)</label>
+          <label title="Путь к папке на сервере, куда будут сохранены PDF-файлы">Папка сохранения (на сервере)</label>
           <input 
             type="text" 
             className="input-control" 

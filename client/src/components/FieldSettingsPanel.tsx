@@ -140,7 +140,12 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
               type="text" 
               className="input-control" 
               value={field.fontColor}
-              onChange={(e) => onUpdateField({ fontColor: e.target.value })}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^#[0-9a-fA-F]{0,6}$/.test(v) || v === '') {
+                  onUpdateField({ fontColor: v || '#000000' });
+                }
+              }}
               placeholder="#000000"
               style={{ flex: 1, fontSize: '0.8rem' }}
             />
@@ -217,7 +222,7 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
             disabled={field.mode !== 'multiline'}
           />
         </div>
-        <div className="form-group" style={{ justifyContent: 'center', paddingTop: '1.2rem' }}>
+        <div className="form-group" style={{ justifyContent: 'center', alignSelf: 'center' }}>
           <label className="input-checkbox">
             <input 
               type="checkbox"

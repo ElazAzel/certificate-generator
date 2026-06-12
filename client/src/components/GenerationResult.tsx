@@ -11,13 +11,28 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
   onClose,
 }) => {
   const backdropRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const downloadBtnRef = useRef<HTMLAnchorElement>(null);
   const downloadUrl = `/api/download/${result.exportId}${result.files.length > 1 ? '?type=zip' : '?type=pdf'}`;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') {
+        const focusable = [downloadBtnRef.current, closeBtnRef.current].filter(Boolean) as HTMLElement[];
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
     };
     document.addEventListener('keydown', onKeyDown);
+    downloadBtnRef.current?.focus();
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
@@ -31,7 +46,7 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
       onClick={handleBackdropClick}
       className="modal-overlay"
     >
-      <div className="modal-card" style={{ maxWidth: '520px' }}>
+      <div className="modal-card" style={{ maxWidth: '520px' }} role="dialog" aria-modal="true" aria-label="Результат генерации">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <span style={{ fontSize: '2.5rem' }}>
             {result.errorCount === 0 ? '🎉' : '⚠️'}
@@ -78,16 +93,16 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
         )}
 
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-          <a 
-            href={downloadUrl} 
+          <a
+            ref={downloadBtnRef}
+            href={downloadUrl}
             className="btn btn-primary"
             style={{ flex: 1, textDecoration: 'none' }}
-            target="_blank" 
-            rel="noopener noreferrer"
           >
             📥 Скачать {result.files.length > 1 ? 'ZIP-архив' : 'PDF-файл'}
           </a>
-          <button 
+          <button
+            ref={closeBtnRef}
             className="btn btn-secondary"
             onClick={onClose}
             style={{ width: '100px' }}

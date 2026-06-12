@@ -82,7 +82,7 @@ export default function App() {
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), type === 'error' ? 5000 : 3000);
   };
 
   // 3. Load custom fonts list on mount
@@ -90,7 +90,8 @@ export default function App() {
     try {
       const list = await getFonts();
       setFonts(list);
-    } catch {
+    } catch (e) {
+      console.warn('Fonts API:', e);
     }
   };
 
@@ -122,6 +123,8 @@ export default function App() {
 
   // Reset all data
   const handleReset = () => {
+    if (!excelData && !template && fields.length === 0) return;
+    if (!window.confirm('Сбросить все данные? Это действие нельзя отменить.')) return;
     resetExcelData();
     resetTemplate();
     setFields([]);
@@ -263,6 +266,7 @@ export default function App() {
         onReset={handleReset}
         uploadedFonts={fonts}
         isConfigLoaded={fields.length > 0 && !!template}
+        showToast={showToast}
       />
 
       <div className="app-workspace">
@@ -294,7 +298,7 @@ export default function App() {
                 />
 
                 {(excelError || templateError) && (
-                  <div className="validation-alert" style={{ marginTop: '0px' }}>
+                  <div className="validation-alert">
                     {excelError && <div>{excelError}</div>}
                     {templateError && <div>{templateError}</div>}
                   </div>
@@ -313,7 +317,10 @@ export default function App() {
                 fields={fields}
                 activeFieldId={activeFieldId}
                 onSelectField={handleSelectField}
-                onAddField={() => addField(excelData?.columns[0] || 'name', template?.width, template?.height)}
+                onAddField={() => addField(
+                  excelData?.columns.find(c => /name|fio|full.?name|participant/i.test(c)) || excelData?.columns[0] || 'name',
+                  template?.width, template?.height
+                )}
                 onDeleteField={deleteField}
                 onDuplicateField={duplicateField}
                 excelColumns={excelData?.columns || []}
