@@ -71,6 +71,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
     (async () => {
       try {
+        if (typeof (Math as any).sumPrecise === 'undefined') { (Math as any).sumPrecise = (arr: number[]) => arr.reduce((a, b) => a + b, 0); }
         const pdfjs = await import('pdfjs-dist');
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
