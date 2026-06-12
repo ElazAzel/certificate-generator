@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { PDFDocument } from 'pdf-lib';
 import { parseExcelFile } from '../services/excelService.js';
-import { registerTemplate } from '../services/pdfService.js';
+import { registerTemplate, getAllTemplates } from '../services/pdfService.js';
 import { registerFont, getAllFonts } from '../services/fontService.js';
 import { getUploadsDir } from '../services/fileService.js';
 
@@ -159,6 +159,25 @@ router.get('/fonts', (req: Request, res: Response) => {
       fontName: f.fontName,
     }));
     res.json(fonts);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/upload/templates
+ */
+router.get('/templates', (req: Request, res: Response) => {
+  try {
+    const templates = getAllTemplates().map(t => ({
+      id: t.id,
+      originalFileName: t.originalFileName,
+      type: t.type,
+      width: t.width,
+      height: t.height,
+      previewUrl: `/uploads/templates/${path.basename(t.filePath)}`,
+    }));
+    res.json(templates);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

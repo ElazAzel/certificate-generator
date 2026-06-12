@@ -15,7 +15,7 @@ import { useFields } from './hooks/useFields';
 
 import type { FontInfo, ExportConfig, ProjectConfig, FieldConfig } from './types/index';
 import type { GenerateResponse } from './utils/api';
-import { getFonts, uploadFont, generateCertificates, generateTestPdf } from './utils/api';
+import { getFonts, uploadFont, generateCertificates, generateTestPdf, getTemplates } from './utils/api';
 
 
 import './styles/global.css';
@@ -85,7 +85,7 @@ export default function App() {
     setTimeout(() => setToast(null), type === 'error' ? 5000 : 3000);
   };
 
-  // 3. Load custom fonts list on mount
+  // 3. Load custom fonts list and existing templates on mount
   const loadFontsList = async () => {
     try {
       const list = await getFonts();
@@ -95,8 +95,20 @@ export default function App() {
     }
   };
 
+  const loadDefaultTemplate = async () => {
+    try {
+      const templates = await getTemplates();
+      if (templates.length > 0 && !template) {
+        setTemplateDirect(templates[0], templates[0].originalFileName);
+      }
+    } catch {
+      // no templates available
+    }
+  };
+
   useEffect(() => {
     loadFontsList();
+    loadDefaultTemplate();
   }, []);
 
   const handleFontUpload = async (file: File) => {

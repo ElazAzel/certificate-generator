@@ -7,6 +7,7 @@ import generateRoutes from './routes/generateRoutes.js';
 import downloadRoutes from './routes/downloadRoutes.js';
 import { ensureDirectories, cleanUploads } from './services/fileService.js';
 import { scanSystemFonts } from './services/fontService.js';
+import { registerTemplate } from './services/pdfService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -23,6 +24,30 @@ cleanUploads();
 
 // Scan system fonts (Windows Fonts folder + bundled fonts)
 scanSystemFonts();
+
+// Auto-register default template if шаблон.pdf exists in template/ folder
+(async () => {
+  try {
+    const templateDir = path.join(process.cwd(), 'template');
+    const files = fs.readdirSync(templateDir).filter(f => f.startsWith('шаблон') && (f.endsWith('.pdf') || f.endsWith('.pdf')));
+    if (files.length > 0) {
+      const srcPath = path.join(templateDir, files[0]);
+      const destDir = path.join(process.cwd(), 'uploads', 'templates');
+      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+      const destPath = path.join(destDir, 'шаблон.pdf');
+      fs.copyFileSync(srcPath, destPath);
+
+      const { PDFDocument } = await import('pdf-lib');
+      const fileBytes = fs.readFileSync(destPath);
+      const pdfDoc = await PDFDocument.load(fileBytes);
+      const firstPage = pdfDoc.getPage(0);
+      registerTemplate(destPath, 'шаблон.pdf', 'pdf', firstPage.getWidth(), firstPage.getHeight());
+      console.log('Default template шаблон.pdf loaded');
+    }
+  } catch {
+    // template folder or file may not exist — fine
+  }
+})();
 
 // Serve uploaded files statically (needed for template background images)
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

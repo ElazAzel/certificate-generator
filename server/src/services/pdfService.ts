@@ -45,6 +45,10 @@ export function getTemplateById(id: string): TemplateStoreInfo | undefined {
   return templateRegistry.get(id);
 }
 
+export function getAllTemplates(): TemplateStoreInfo[] {
+  return Array.from(templateRegistry.values());
+}
+
 /**
  * Parses Hex Color string to RGB pdf-lib color.
  * e.g., "#FF0000" -> rgb(1, 0, 0)

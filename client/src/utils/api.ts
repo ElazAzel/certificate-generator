@@ -96,6 +96,12 @@ export async function generateCertificates(params: GenerateParams): Promise<Gene
   return response.json();
 }
 
+export async function getTemplates(): Promise<TemplateInfo[]> {
+  const response = await fetch(`${BASE_URL}/upload/templates`);
+  if (!response.ok) throw new Error('Не удалось получить список шаблонов');
+  return response.json();
+}
+
 export async function generateTestPdf(
   row: Record<string, string>,
   templateId: string,
