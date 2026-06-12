@@ -1,4 +1,4 @@
-import type { ExcelData, TemplateInfo, FontInfo, FieldConfig, ExportConfig } from '../types/index.js';
+import type { ExcelData, TemplateInfo, FontInfo, FieldConfig, ExportConfig } from '../types/index';
 
 const BASE_URL = '/api';
 

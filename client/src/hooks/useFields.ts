@@ -59,13 +59,12 @@ export function useFields() {
 
     const newId = `field_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     
-    // Shift duplicated field slightly down-right
     const duplicated: FieldConfig = {
       ...field,
       id: newId,
       label: `${field.label} (Копия)`,
-      x: Math.min(field.x + 20, 800),
-      y: Math.min(field.y + 20, 500),
+      x: field.x + 20,
+      y: field.y + 20,
     };
 
     setFields([...fields, duplicated]);

@@ -32,7 +32,7 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
 
   const allFontsList = fonts.length > 0
     ? fonts.map(f => f.fontName)
-    : ['Arial (по умолчанию)'];
+    : ['Arial'];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

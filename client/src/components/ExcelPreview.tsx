@@ -83,7 +83,7 @@ export const ExcelPreview: React.FC<ExcelPreviewProps> = ({
                 <td>{idx + 1}</td>
                 {columns.map((col) => (
                   <td key={col} title={row[col]}>
-                    {row[col] || <span style={{ color: 'var(--text-light)' }}>-</span>}
+                    {row[col] ?? <span style={{ color: 'var(--text-light)' }}>-</span>}
                   </td>
                 ))}
               </tr>

@@ -11,7 +11,7 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
   onClose,
 }) => {
   const backdropRef = useRef<HTMLDivElement>(null);
-  const downloadUrl = `/api/download/${result.exportId}${result.files.length > 1 ? '?type=zip' : `?type=${result.files[0].endsWith('.zip') ? 'zip' : ''}`}`;
+  const downloadUrl = `/api/download/${result.exportId}${result.files.length > 1 ? '?type=zip' : '?type=pdf'}`;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

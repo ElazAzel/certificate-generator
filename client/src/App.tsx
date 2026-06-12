@@ -204,7 +204,9 @@ export default function App() {
   // 6. Test PDF generation for active row
   const handleGenerateTestPdf = async () => {
     if (!excelData || !template) return;
+    if (currentRowIndex < 0 || currentRowIndex >= excelData.rows.length) return;
     const row = excelData.rows[currentRowIndex];
+    if (!row) return;
     try {
       const blob = await generateTestPdf(row, template.id, fields);
       const url = URL.createObjectURL(blob);
@@ -225,6 +227,7 @@ export default function App() {
       const rows = excelData.rows;
       const total = rows.length;
 
+      setCurrentProcessingRow('Генерация...');
       const response = await generateCertificates({
         excelData: rows,
         templateId: template.id,
@@ -233,6 +236,7 @@ export default function App() {
       });
 
       setGenerationProgress(100);
+      setCurrentProcessingRow('');
       setGenerationResult(response);
     } catch (err: any) {
       showToast(`Ошибка генерации: ${err.message}`, 'error');
@@ -258,7 +262,7 @@ export default function App() {
         onFontUpload={handleFontUpload}
         onReset={handleReset}
         uploadedFonts={fonts}
-        isConfigLoaded={fields.length > 0}
+        isConfigLoaded={fields.length > 0 && !!template}
       />
 
       <div className="app-workspace">
@@ -326,7 +330,7 @@ export default function App() {
             activeFieldId={activeFieldId}
             onSelectField={handleSelectField}
             onUpdateField={updateField}
-            currentRowData={excelData?.rows[currentRowIndex]}
+            currentRowData={excelData?.rows?.[currentRowIndex]}
             scale={scale}
             onScaleChange={setScale}
           />

@@ -276,7 +276,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
           {fields.map((field) => {
             const isActive = field.id === activeFieldId;
-            const textValue = currentRowData[field.excelColumn] || `{${field.excelColumn}}`;
+            const textValue = currentRowData[field.excelColumn] ?? `{${field.excelColumn}}`;
             
             const getTextAlignStyle = () => {
               if (field.align === 'center') return 'center';
@@ -317,7 +317,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                     fontWeight: field.bold ? 'bold' : 'normal',
                     fontStyle: field.italic ? 'italic' : 'normal',
                     whiteSpace: field.mode === 'multiline' ? 'normal' : 'nowrap',
-                    textOverflow: field.mode === 'clip' ? 'ellipsis' : 'clip',
+                    textOverflow: field.mode === 'clip' ? 'clip' : 'ellipsis',
                     overflow: 'hidden',
                   }}
                 >
