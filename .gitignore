@@ -1,0 +1,17 @@
+node_modules/
+client/node_modules/
+server/node_modules/
+
+client/dist/
+server/dist/
+
+server/uploads/
+server/output/
+
+*.tsbuildinfo
+*.log
+.DS_Store
+Thumbs.db
+
+.env
+.env.local

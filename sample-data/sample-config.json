@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "template": {
+    "width": 842,
+    "height": 595,
+    "unit": "pdf-points"
+  },
+  "fields": [
+    {
+      "id": "f1",
+      "label": "ФИО",
+      "excelColumn": "name",
+      "x": 100,
+      "y": 220,
+      "width": 642,
+      "height": 60,
+      "fontFamily": "Arial",
+      "fontSize": 36,
+      "fontColor": "#1e3a5f",
+      "align": "center",
+      "verticalAlign": "middle",
+      "bold": true,
+      "italic": false,
+      "rotation": 0,
+      "letterSpacing": 1,
+      "lineHeight": 1.2,
+      "mode": "shrink-to-fit",
+      "visible": true
+    },
+    {
+      "id": "f2",
+      "label": "Курс",
+      "excelColumn": "course",
+      "x": 100,
+      "y": 295,
+      "width": 642,
+      "height": 40,
+      "fontFamily": "Arial",
+      "fontSize": 22,
+      "fontColor": "#2d5a8e",
+      "align": "center",
+      "verticalAlign": "middle",
+      "bold": false,
+      "italic": false,
+      "rotation": 0,
+      "letterSpacing": 0,
+      "lineHeight": 1.2,
+      "mode": "multiline",
+      "visible": true
+    },
+    {
+      "id": "f3",
+      "label": "Дата",
+      "excelColumn": "date",
+      "x": 100,
+      "y": 370,
+      "width": 300,
+      "height": 30,
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontColor": "#555555",
+      "align": "left",
+      "verticalAlign": "middle",
+      "bold": false,
+      "italic": false,
+      "rotation": 0,
+      "letterSpacing": 0,
+      "lineHeight": 1.2,
+      "mode": "clip",
+      "visible": true
+    }
+  ],
+  "export": {
+    "mode": "separate",
+    "fileNameTemplate": "{name}.pdf",
+    "fileNameColumn": "name",
+    "outputFolder": "output",
+    "combinedFileName": "certificates_all.pdf"
+  }
+}
