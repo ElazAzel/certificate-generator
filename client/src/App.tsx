@@ -31,6 +31,7 @@ export default function App() {
     handleExcelUpload,
     setCurrentRowIndex,
     setExcelDirect,
+    resetExcelData,
   } = useExcelData();
 
   const {
@@ -40,6 +41,7 @@ export default function App() {
     error: templateError,
     handleTemplateUpload,
     setTemplateDirect,
+    resetTemplate,
   } = useTemplate();
 
   const {
@@ -120,8 +122,8 @@ export default function App() {
 
   // Reset all data
   const handleReset = () => {
-    setExcelDirect(undefined, '');
-    setTemplateDirect(undefined, '');
+    resetExcelData();
+    resetTemplate();
     setFields([]);
     setActiveFieldId(undefined);
     setExportConfig({

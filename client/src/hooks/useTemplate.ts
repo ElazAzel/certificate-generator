@@ -29,6 +29,11 @@ export function useTemplate() {
     setTemplateName(name);
   };
 
+  const resetTemplate = () => {
+    setTemplate(undefined);
+    setTemplateName('');
+  };
+
   return {
     template,
     templateName,
@@ -36,5 +41,6 @@ export function useTemplate() {
     error,
     handleTemplateUpload,
     setTemplateDirect,
+    resetTemplate,
   };
 }

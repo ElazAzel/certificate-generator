@@ -36,6 +36,12 @@ export function useExcelData() {
     setCurrentRowIndex(0);
   };
 
+  const resetExcelData = () => {
+    setExcelData(null);
+    setExcelName('');
+    setCurrentRowIndex(0);
+  };
+
   return {
     excelData,
     excelName,
@@ -45,5 +51,6 @@ export function useExcelData() {
     handleExcelUpload,
     setCurrentRowIndex,
     setExcelDirect,
+    resetExcelData,
   };
 }
