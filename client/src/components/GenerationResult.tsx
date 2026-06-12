@@ -29,30 +29,9 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
     <div
       ref={backdropRef}
       onClick={handleBackdropClick}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 100,
-      }}
+      className="modal-overlay"
     >
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: 'var(--radius-lg)',
-        padding: '2rem',
-        maxWidth: '550px',
-        width: '90%',
-        boxShadow: 'var(--shadow-lg)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1.25rem',
-      }}>
+      <div className="modal-card" style={{ maxWidth: '520px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <span style={{ fontSize: '2.5rem' }}>
             {result.errorCount === 0 ? '🎉' : '⚠️'}
@@ -87,19 +66,7 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
         </div>
 
         {result.errors.length > 0 && (
-          <div style={{
-            maxHeight: '120px',
-            overflowY: 'auto',
-            border: '1px solid #fca5a5',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.75rem',
-            backgroundColor: '#fef2f2',
-            fontSize: '0.75rem',
-            color: 'var(--danger-color)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem',
-          }}>
+          <div className="validation-alert" style={{ maxHeight: '120px', overflowY: 'auto' }}>
             <strong>Ошибки в строках:</strong>
             <ul style={{ paddingLeft: '1.25rem' }}>
               {result.errors.slice(0, 10).map((err, idx) => (

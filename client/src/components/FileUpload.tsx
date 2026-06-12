@@ -32,9 +32,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <div 
-          className="upload-box" 
+          className={excelName ? 'upload-box uploaded' : 'upload-box'}
           onClick={() => excelRef.current?.click()}
-          style={excelName ? { borderColor: 'var(--success-color)', backgroundColor: '#ecfdf5' } : {}}
         >
           <div className="upload-icon" style={excelName ? { color: 'var(--success-color)' } : {}}>📊</div>
           <div className="upload-title">
@@ -54,28 +53,17 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         <a 
           href="/api/download/excel-template" 
           download="template.xlsx"
-          style={{
-            fontSize: '0.75rem',
-            color: 'var(--primary-color)',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            alignSelf: 'flex-start',
-            paddingLeft: '0.25rem',
-            fontWeight: '500'
-          }}
+          className="download-link"
           title="Скачать пример шаблона Excel с правильной структурой полей"
         >
           📥 Скачать шаблонный Excel-файл
         </a>
       </div>
 
-      <div 
-        className="upload-box" 
-        onClick={() => templateRef.current?.click()}
-        style={templateName ? { borderColor: 'var(--success-color)', backgroundColor: '#ecfdf5' } : {}}
-      >
+        <div 
+          className={templateName ? 'upload-box uploaded' : 'upload-box'}
+          onClick={() => templateRef.current?.click()}
+        >
         <div className="upload-icon" style={templateName ? { color: 'var(--success-color)' } : {}}>🖼️</div>
         <div className="upload-title">
           {templateName ? 'Шаблон загружен' : 'Загрузите шаблон сертификата'}

@@ -16,15 +16,7 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
 }) => {
   if (!field) {
     return (
-      <div style={{ 
-        textAlign: 'center', 
-        color: 'var(--text-muted)', 
-        fontSize: '0.85rem',
-        padding: '3rem 1.5rem',
-        border: '1px dashed var(--border-color)',
-        borderRadius: 'var(--radius-md)',
-        marginTop: '1rem'
-      }}>
+      <div className="settings-empty">
         Выберите или добавьте поле на макете для настройки параметров.
       </div>
     );
@@ -143,7 +135,6 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
               type="color" 
               value={field.fontColor}
               onChange={(e) => onUpdateField({ fontColor: e.target.value })}
-              style={{ width: '36px', height: '28px', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', padding: 0 }}
             />
             <input 
               type="text" 

@@ -393,20 +393,7 @@ export default function App() {
       )}
 
       {toast && (
-        <div style={{
-          position: 'fixed',
-          bottom: '2rem',
-          right: '2rem',
-          padding: '0.75rem 1.25rem',
-          borderRadius: 'var(--radius-sm)',
-          backgroundColor: toast.type === 'success' ? '#065f46' : '#991b1b',
-          color: 'white',
-          fontSize: '0.875rem',
-          fontWeight: 500,
-          boxShadow: 'var(--shadow-lg)',
-          zIndex: 200,
-          animation: 'slideIn 0.2s ease',
-        }}>
+        <div className={`toast ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>
           {toast.message}
         </div>
       )}

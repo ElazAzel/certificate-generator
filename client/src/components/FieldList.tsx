@@ -23,7 +23,7 @@ export const FieldList: React.FC<FieldListProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+        <span className="section-title">
           Список полей ({fields.length})
         </span>
         <button 
@@ -36,14 +36,7 @@ export const FieldList: React.FC<FieldListProps> = ({
       </div>
 
       {fields.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '1.5rem',
-          border: '1px dashed var(--border-color)',
-          borderRadius: 'var(--radius-sm)',
-          fontSize: '0.8rem',
-          color: 'var(--text-muted)'
-        }}>
+        <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
           Нажмите кнопку выше, чтобы добавить текстовое поле
         </div>
       ) : (
@@ -59,7 +52,7 @@ export const FieldList: React.FC<FieldListProps> = ({
                   {field.label}
                 </span>
                 <span className="field-item-col">
-                  Колонка: <code style={{ backgroundColor: '#f1f5f9', padding: '1px 4px', borderRadius: '3px' }}>{field.excelColumn}</code>
+                  Колонка: <code>{field.excelColumn}</code>
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>

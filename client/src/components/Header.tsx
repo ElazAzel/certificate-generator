@@ -69,11 +69,11 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="header-actions">
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <button 
-            className="btn btn-secondary"
+            className="btn btn-ghost btn-sm"
             onClick={() => fontInputRef.current?.click()}
             disabled={fontLoading}
           >
-            {fontLoading ? '⏳ Загрузка...' : 'Загрузить шрифт (TTF/OTF)'}
+            {fontLoading ? '⏳ Загрузка...' : '🔤 Шрифт'}
           </button>
           <input 
             type="file" 
@@ -84,19 +84,19 @@ export const Header: React.FC<HeaderProps> = ({
           />
 
           {uploadedFonts.length > 0 && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              ({uploadedFonts.length} шрифт.)
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>
+              {uploadedFonts.length}
             </span>
           )}
         </div>
 
-        <span style={{ borderLeft: '1px solid var(--border-color)', height: '20px', margin: '0 0.5rem' }} />
+        <span className="header-divider" />
 
         <button 
-          className="btn btn-secondary"
+          className="btn btn-ghost btn-sm"
           onClick={() => fileInputRef.current?.click()}
         >
-          Импорт JSON
+          📥 Импорт
         </button>
         <input 
           type="file" 
@@ -107,19 +107,19 @@ export const Header: React.FC<HeaderProps> = ({
         />
 
         <button 
-          className="btn btn-primary"
+          className="btn btn-primary btn-sm"
           onClick={onSaveConfig}
           disabled={!isConfigLoaded}
         >
-          Экспорт JSON
+          📤 Экспорт
         </button>
 
         <button 
-          className="btn btn-danger"
+          className="btn btn-ghost btn-sm"
           onClick={onReset}
           title="Сбросить все данные"
         >
-          Сбросить
+          🗑️
         </button>
       </div>
     </header>

@@ -17,7 +17,7 @@ export const ExcelPreview: React.FC<ExcelPreviewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+        <span className="section-title">
           Строки таблицы ({rows.length})
         </span>
         <div className="row-navigator">
@@ -74,11 +74,7 @@ export const ExcelPreview: React.FC<ExcelPreviewProps> = ({
               <tr 
                 key={idx}
                 onClick={() => onRowChange(idx)}
-                style={{
-                  cursor: 'pointer',
-                  backgroundColor: idx === currentRowIndex ? 'var(--primary-light)' : 'transparent',
-                  fontWeight: idx === currentRowIndex ? '500' : 'normal',
-                }}
+                className={idx === currentRowIndex ? 'active' : ''}
               >
                 <td>{idx + 1}</td>
                 {columns.map((col) => (
