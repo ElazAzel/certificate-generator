@@ -72,7 +72,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     (async () => {
       try {
         const pdfjs = await import('pdfjs-dist');
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+        pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
         const pdf = await pdfjs.getDocument({ url: template.previewUrl }).promise;
         const page = await pdf.getPage(1);
@@ -85,8 +85,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         await page.render({ canvas, canvasContext: ctx, viewport }).promise;
 
         if (!cancelled) setPdfPreviewUrl(canvas.toDataURL());
-      } catch {
-        if (!cancelled) setPdfPreviewUrl(null);
+      } catch (e) {
+        if (!cancelled) { console.warn('PDF preview failed:', e); setPdfPreviewUrl(null); }
       } finally {
         if (!cancelled) setPdfLoading(false);
       }
