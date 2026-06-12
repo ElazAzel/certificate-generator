@@ -311,7 +311,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                     justifyContent: getTextAlignStyle() === 'center' ? 'center' : getTextAlignStyle() === 'right' ? 'flex-end' : 'flex-start',
                     color: field.fontColor,
                     fontSize: `${field.fontSize * scale}px`,
-                    fontFamily: 'inherit',
+                    fontFamily: field.fontFamily,
                     textAlign: getTextAlignStyle(),
                     lineHeight: field.lineHeight || 1.2,
                     fontWeight: field.bold ? 'bold' : 'normal',
