@@ -1,9 +1,40 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { FieldConfig } from '../types/index';
 
 export function useFields() {
   const [fields, setFields] = useState<FieldConfig[]>([]);
   const [activeFieldId, setActiveFieldId] = useState<string | undefined>(undefined);
+  const [undoStack, setUndoStack] = useState<FieldConfig[][]>([]);
+  const [redoStack, setRedoStack] = useState<FieldConfig[][]>([]);
+
+  const pushHistory = useCallback((prev: FieldConfig[]) => {
+    setUndoStack(s => [...s.slice(-50), prev]);
+    setRedoStack([]);
+  }, []);
+
+  const undo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const prev = undoStack[undoStack.length - 1];
+    setUndoStack(s => s.slice(0, -1));
+    setRedoStack(s => [...s, fields]);
+    setFields(prev);
+  }, [undoStack, fields]);
+
+  const redo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setRedoStack(s => s.slice(0, -1));
+    setUndoStack(s => [...s, fields]);
+    setFields(next);
+  }, [redoStack, fields]);
+
+  const setFieldsWithHistory = useCallback((newFields: FieldConfig[] | ((prev: FieldConfig[]) => FieldConfig[])) => {
+    setFields(prev => {
+      const next = typeof newFields === 'function' ? newFields(prev) : newFields;
+      if (JSON.stringify(prev) !== JSON.stringify(next)) pushHistory(prev);
+      return next;
+    });
+  }, [pushHistory]);
 
   const addField = (defaultColumn: string, templateWidth?: number, templateHeight?: number) => {
     const tW = templateWidth && templateWidth > 0 ? templateWidth : 842;
@@ -36,21 +67,25 @@ export function useFields() {
       visible: true,
     };
 
-    setFields([...fields, newField]);
+    setFieldsWithHistory([...fields, newField]);
     setActiveFieldId(id);
   };
 
   const updateField = (id: string, updates: Partial<FieldConfig>) => {
-    setFields(
-      fields.map((f) => (f.id === id ? { ...f, ...updates } : f))
-    );
+    setFields(prev => {
+      const next = prev.map((f) => (f.id === id ? { ...f, ...updates } : f));
+      if (JSON.stringify(prev) !== JSON.stringify(next)) pushHistory(prev);
+      return next;
+    });
   };
 
   const deleteField = (id: string) => {
-    setFields(fields.filter((f) => f.id !== id));
-    if (activeFieldId === id) {
-      setActiveFieldId(undefined);
-    }
+    setFields(prev => {
+      const next = prev.filter((f) => f.id !== id);
+      pushHistory(prev);
+      if (activeFieldId === id) setActiveFieldId(undefined);
+      return next;
+    });
   };
 
   const duplicateField = (id: string) => {
@@ -67,7 +102,7 @@ export function useFields() {
       y: field.y + 20,
     };
 
-    setFields([...fields, duplicated]);
+    setFieldsWithHistory([...fields, duplicated]);
     setActiveFieldId(newId);
   };
 
@@ -75,7 +110,7 @@ export function useFields() {
 
   return {
     fields,
-    setFields,
+    setFields: setFieldsWithHistory,
     activeFieldId,
     setActiveFieldId,
     activeField,
@@ -83,5 +118,9 @@ export function useFields() {
     updateField,
     deleteField,
     duplicateField,
+    canUndo: undoStack.length > 0,
+    canRedo: redoStack.length > 0,
+    undo,
+    redo,
   };
 }

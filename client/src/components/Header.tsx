@@ -9,6 +9,8 @@ interface HeaderProps {
   uploadedFonts: { id: string; fileName: string; fontName: string }[];
   isConfigLoaded: boolean;
   showToast: (msg: string, type: 'success' | 'error') => void;
+  theme: string;
+  onToggleTheme: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   uploadedFonts,
   isConfigLoaded,
   showToast,
+  theme,
+  onToggleTheme,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button 
           className="btn btn-ghost btn-sm"
           onClick={() => fileInputRef.current?.click()}
+          data-tooltip="Загрузить JSON-конфигурацию полей"
         >
           📥 Импорт
         </button>
@@ -119,9 +124,16 @@ export const Header: React.FC<HeaderProps> = ({
         <button 
           className="btn btn-ghost btn-sm"
           onClick={onReset}
-          title="Сбросить все данные"
+          data-tooltip="Сбросить все данные"
         >
           🗑️
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={onToggleTheme}
+          data-tooltip={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+        >
+          {theme === 'dark' ? '☀️' : '🌙'}
         </button>
       </div>
     </header>

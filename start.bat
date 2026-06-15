@@ -2,6 +2,23 @@
 chcp 65001 >nul
 title Generator sertifikatov
 
+:: Создание ярлыка на рабочем столе при первом запуске
+if not exist "%USERPROFILE%\Desktop\Генератор Сертификатов.lnk" (
+    echo [0/3] Sozdanie yarlyka na rabochem stole...
+    set PSFILE=%TEMP%\mklnk_temp.ps1
+    >"%PSFILE%" echo $WSH = New-Object -ComObject WScript.Shell
+    >>"%PSFILE%" echo $L = $WSH.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Генератор Сертификатов.lnk')
+    >>"%PSFILE%" echo $L.TargetPath = '%~f0'
+    >>"%PSFILE%" echo $L.WorkingDirectory = '%~dp0'
+    >>"%PSFILE%" echo $L.Description = 'Запуск генератора сертификатов'
+    >>"%PSFILE%" echo $L.Save()
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%PSFILE%" <nul
+    del "%PSFILE%" 2>nul
+    if exist "%USERPROFILE%\Desktop\Генератор Сертификатов.lnk" (
+        echo   Yarlyk sozdan: Рабочий стол\Генератор Сертификатов.lnk
+    )
+)
+
 echo ============================================
 echo   Generator sertifikatov - zapusk
 echo ============================================

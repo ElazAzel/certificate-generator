@@ -1,33 +1,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { getDb } from './db.js';
 import type { FontInfo } from '../types/index.js';
 
-const fontRegistry = new Map<string, FontInfo>();
-
-/**
- * Read the English Font Family name (name ID 1) from a TTF/OTF binary table.
- * This parses the 'name' table of the OpenType/TrueType spec.
- */
 function readFontFamilyName(filePath: string): string | null {
   try {
     const buf = fs.readFileSync(filePath);
     const data = new Uint8Array(buf);
     const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
-    // Read the offset table
     const sfVersion = view.getUint32(0, false);
-    const isTTF = sfVersion === 0x00010000 || sfVersion === 0x74727565; // 0x00010000 or 'true'
-    const isOTF = sfVersion === 0x4F54544F; // 'OTTO'
+    const isTTF = sfVersion === 0x00010000 || sfVersion === 0x74727565;
+    const isOTF = sfVersion === 0x4F54544F;
     if (!isTTF && !isOTF) return null;
 
     const numTables = view.getUint16(4, false);
-    const searchRange = view.getUint16(6, false);
-    const entrySelector = view.getUint16(8, false);
-    const rangeShift = view.getUint16(10, false);
-
-    // Find the 'name' table
     let nameOffset = -1;
-    let nameLength = 0;
     for (let i = 0; i < numTables; i++) {
       const recordOffset = 12 + i * 16;
       const tag = String.fromCharCode(
@@ -36,14 +24,11 @@ function readFontFamilyName(filePath: string): string | null {
       );
       if (tag === 'name') {
         nameOffset = view.getUint32(recordOffset + 8, false);
-        nameLength = view.getUint32(recordOffset + 12, false);
         break;
       }
     }
-    if (nameOffset < 0 || nameLength <= 0) return null;
+    if (nameOffset < 0) return null;
 
-    // Parse the name table
-    const fmt = view.getUint16(nameOffset, false);
     const count = view.getUint16(nameOffset + 2, false);
     const stringOffset = view.getUint16(nameOffset + 4, false);
 
@@ -51,18 +36,13 @@ function readFontFamilyName(filePath: string): string | null {
       const recOff = nameOffset + 6 + i * 12;
       const platformID = view.getUint16(recOff, false);
       const encodingID = view.getUint16(recOff + 2, false);
-      const languageID = view.getUint16(recOff + 4, false);
       const nameID = view.getUint16(recOff + 6, false);
       const len = view.getUint16(recOff + 8, false);
       const strOff = nameOffset + stringOffset + view.getUint16(recOff + 10, false);
 
-      // Name ID 1 = Font Family
       if (nameID !== 1) continue;
 
-      // Prefer Windows platform (3) with Unicode BMP (1), English (1033) or any language
-      // Also accept Mac platform (1) with Roman (0), English (0)
       if (platformID === 3 && encodingID === 1) {
-        // Windows Unicode
         let result = '';
         for (let j = 0; j < len; j += 2) {
           const code = view.getUint16(strOff + j, false);
@@ -71,7 +51,6 @@ function readFontFamilyName(filePath: string): string | null {
         }
         if (result.trim()) return result.trim();
       } else if (platformID === 1 && encodingID === 0) {
-        // Mac Roman
         let result = '';
         for (let j = 0; j < len; j++) {
           const code = data[strOff + j];
@@ -87,14 +66,14 @@ function readFontFamilyName(filePath: string): string | null {
   }
 }
 
-/**
- * Scan the Windows fonts directory and register all TTF/OTF fonts.
- */
 export function scanSystemFonts(): void {
   const fontDirs = [
     path.join(process.env.SystemRoot || 'C:\\Windows', 'Fonts'),
     path.join(process.cwd(), 'fonts'),
   ];
+
+  const db = getDb();
+  const insert = db.prepare('INSERT OR IGNORE INTO fonts (id, file_name, font_name, file_path) VALUES (?, ?, ?, ?)');
 
   for (const dir of fontDirs) {
     if (!fs.existsSync(dir)) continue;
@@ -108,18 +87,9 @@ export function scanSystemFonts(): void {
         const fontName = readFontFamilyName(filePath) || path.basename(file, ext);
         const id = `sys_${fontName.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-        // Don't overwrite if already registered
-        if (fontRegistry.has(id)) continue;
-
-        const info: FontInfo = {
-          id,
-          fileName: file,
-          fontName,
-          filePath,
-        };
-        fontRegistry.set(id, info);
+        insert.run(id, file, fontName, filePath);
       }
-    } catch { /* skip unreadable directories */ }
+    } catch { }
   }
 }
 
@@ -136,38 +106,33 @@ export function registerFont(filePath: string, originalName: string): FontInfo {
   const id = `font_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
   const fontName = path.basename(originalName, ext);
 
-  const info: FontInfo = {
-    id,
-    fileName: originalName,
-    fontName,
-    filePath,
-  };
+  const db = getDb();
+  db.prepare('INSERT INTO fonts (id, file_name, font_name, file_path) VALUES (?, ?, ?, ?)').run(id, originalName, fontName, filePath);
 
-  fontRegistry.set(id, info);
-  return info;
+  return { id, fileName: originalName, fontName, filePath };
 }
 
 export function getFontById(id: string): FontInfo | undefined {
-  return fontRegistry.get(id);
+  const row = getDb().prepare('SELECT id, file_name, font_name, file_path FROM fonts WHERE id = ?').get(id) as any;
+  if (!row) return undefined;
+  return { id: row.id, fileName: row.file_name, fontName: row.font_name, filePath: row.file_path };
 }
 
 export function getAllFonts(): FontInfo[] {
-  return Array.from(fontRegistry.values());
+  const rows = getDb().prepare('SELECT id, file_name, font_name, file_path FROM fonts ORDER BY font_name').all() as any[];
+  return rows.map(r => ({ id: r.id, fileName: r.file_name, fontName: r.font_name, filePath: r.file_path }));
 }
 
 export function getFontBytes(id: string): Uint8Array {
-  const info = fontRegistry.get(id);
-  if (!info) {
-    throw new Error(`Шрифт с id "${id}" не найден`);
-  }
-  if (!fs.existsSync(info.filePath)) {
-    throw new Error(`Файл шрифта не найден: ${info.filePath}`);
-  }
+  const info = getFontById(id);
+  if (!info) throw new Error(`Шрифт с id "${id}" не найден`);
+  if (!fs.existsSync(info.filePath)) throw new Error(`Файл шрифта не найден: ${info.filePath}`);
   return fs.readFileSync(info.filePath);
 }
 
 export function getBundledFontBytes(): Uint8Array | null {
-  for (const info of fontRegistry.values()) {
+  const all = getAllFonts();
+  for (const info of all) {
     if (info.fileName.toLowerCase() === 'arial.ttf') {
       try { return fs.readFileSync(info.filePath); } catch { return null; }
     }
@@ -176,19 +141,17 @@ export function getBundledFontBytes(): Uint8Array | null {
 }
 
 export function findFontByName(name: string): FontInfo | undefined {
-  // Exact matches first
-  for (const font of fontRegistry.values()) {
-    if (font.fontName === name || font.fileName === name || font.id === name) {
-      return font;
-    }
+  const db = getDb();
+  const rows = db.prepare('SELECT id, file_name, font_name, file_path FROM fonts WHERE font_name = ? OR file_name = ? OR id = ?').all(name, name, name) as any[];
+  if (rows.length > 0) {
+    const r = rows[0];
+    return { id: r.id, fileName: r.file_name, fontName: r.font_name, filePath: r.file_path };
   }
-  // Case-insensitive match
   const lower = name.toLowerCase();
-  for (const font of fontRegistry.values()) {
-    if (font.fontName.toLowerCase() === lower ||
-        font.fileName.toLowerCase() === lower) {
-      return font;
-    }
+  const caseRows = db.prepare('SELECT id, file_name, font_name, file_path FROM fonts WHERE LOWER(font_name) = ? OR LOWER(file_name) = ?').all(lower, lower) as any[];
+  if (caseRows.length > 0) {
+    const r = caseRows[0];
+    return { id: r.id, fileName: r.file_name, fontName: r.font_name, filePath: r.file_path };
   }
   return undefined;
 }

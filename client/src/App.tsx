@@ -60,6 +60,7 @@ export default function App() {
   const [leftTab, setLeftTab] = useState<'files' | 'fields'>('files');
   const [fonts, setFonts] = useState<FontInfo[]>([]);
   const [scale, setScale] = useState<number>(0.8);
+  const [theme, setTheme] = useState<string>(() => localStorage.getItem('theme') || 'light');
   const [exportConfig, setExportConfig] = useState<ExportConfig>({
     mode: 'separate',
     fileNameTemplate: '{name}.pdf',
@@ -110,6 +111,14 @@ export default function App() {
     loadFontsList();
     loadDefaultTemplate();
   }, []);
+
+  // Sync theme attribute on body
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   const handleFontUpload = async (file: File) => {
     try {
@@ -279,6 +288,8 @@ export default function App() {
         uploadedFonts={fonts}
         isConfigLoaded={fields.length > 0 && !!template}
         showToast={showToast}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       <div className="app-workspace">

@@ -2,12 +2,13 @@ import { Router, Request, Response } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getOutputDir } from '../services/fileService.js';
+import { exportProjectZip } from '../services/projectService.js';
+import { logger } from '../index.js';
 
 const router = Router();
 
 /**
  * GET /api/download/excel-template
- * Downloads the sample Excel template file.
  */
 router.get('/excel-template', (req: Request, res: Response) => {
   try {
@@ -24,21 +25,36 @@ router.get('/excel-template', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/download/project
+ * Export full project configuration as ZIP.
+ */
+router.get('/project', async (req: Request, res: Response) => {
+  try {
+    const zipBuffer = await exportProjectZip();
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="project-export.zip"');
+    res.send(zipBuffer);
+    logger.info('Project export downloaded');
+  } catch (err: any) {
+    logger.error(`Project export failed: ${err.message}`);
+    res.status(500).json({ error: err.message || 'Ошибка экспорта проекта' });
+  }
+});
+
+/**
  * GET /api/download/:exportId
- * Downloads either the single combined PDF or the ZIP file containing all separate PDFs.
  */
 router.get('/:exportId', (req: Request, res: Response) => {
   try {
     const exportId = req.params.exportId;
-    const type = req.query.type as string; // 'zip' or 'pdf'
-    
-    // Safety check: block path traversal
+    const type = req.query.type as string;
+
     if (exportId.includes('..') || exportId.includes('/') || exportId.includes('\\')) {
       return res.status(400).json({ error: 'Недопустимый идентификатор экспорта' });
     }
 
     const exportDir = path.join(getOutputDir(), exportId);
-    
+
     if (!fs.existsSync(exportDir)) {
       return res.status(404).json({ error: 'Экспорт не найден' });
     }
@@ -52,7 +68,6 @@ router.get('/:exportId', (req: Request, res: Response) => {
       res.setHeader('Content-Disposition', `attachment; filename="certificates_${exportId}.zip"`);
       return res.sendFile(zipPath);
     } else {
-      // Find the first PDF in the directory
       const files = fs.readdirSync(exportDir);
       const pdfFiles = files.filter(f => f.endsWith('.pdf'));
 
@@ -60,7 +75,6 @@ router.get('/:exportId', (req: Request, res: Response) => {
         return res.status(404).json({ error: 'PDF файлы отсутствуют в этой папке' });
       }
 
-      // If combined mode, there is one PDF. If separate, send the first one or prompt ZIP
       const targetPdf = pdfFiles[0];
       const pdfPath = path.join(exportDir, targetPdf);
 

@@ -3,14 +3,14 @@ import fontkit from '@pdf-lib/fontkit';
 import * as fs from 'fs';
 import * as path from 'path';
 import archiver from 'archiver';
+import { getDb } from './db.js';
 import type { FieldConfig, ExportConfig, GenerateResult } from '../types/index.js';
 import { getFontBytes, findFontByName, getBundledFontBytes } from './fontService.js';
 import { uiYToPdfY, calculateTextBaselineY, calculateTextX } from '../utils/coordinates.js';
 import { measureTextWidth, wrapText, shrinkTextToFit } from '../utils/textLayout.js';
 import { applyFileNameTemplate } from '../utils/sanitize.js';
 
-// In-memory template registry
-interface TemplateStoreInfo {
+export interface TemplateStoreInfo {
   id: string;
   type: 'pdf' | 'png' | 'jpg' | 'jpeg';
   width: number;
@@ -18,8 +18,6 @@ interface TemplateStoreInfo {
   filePath: string;
   originalFileName: string;
 }
-
-const templateRegistry = new Map<string, TemplateStoreInfo>();
 
 export function registerTemplate(
   filePath: string,
@@ -29,24 +27,20 @@ export function registerTemplate(
   height: number
 ): TemplateStoreInfo {
   const id = `template_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-  const info: TemplateStoreInfo = {
-    id,
-    type,
-    width,
-    height,
-    filePath,
-    originalFileName: originalName,
-  };
-  templateRegistry.set(id, info);
-  return info;
+  const db = getDb();
+  db.prepare('INSERT INTO templates (id, file_path, original_name, type, width, height) VALUES (?, ?, ?, ?, ?, ?)').run(id, filePath, originalName, type, width, height);
+  return { id, type, width, height, filePath, originalFileName: originalName };
 }
 
 export function getTemplateById(id: string): TemplateStoreInfo | undefined {
-  return templateRegistry.get(id);
+  const row = getDb().prepare('SELECT id, file_path, original_name, type, width, height FROM templates WHERE id = ?').get(id) as any;
+  if (!row) return undefined;
+  return { id: row.id, filePath: row.file_path, originalFileName: row.original_name, type: row.type, width: row.width, height: row.height };
 }
 
 export function getAllTemplates(): TemplateStoreInfo[] {
-  return Array.from(templateRegistry.values());
+  const rows = getDb().prepare('SELECT id, file_path, original_name, type, width, height FROM templates').all() as any[];
+  return rows.map(r => ({ id: r.id, filePath: r.file_path, originalFileName: r.original_name, type: r.type, width: r.width, height: r.height }));
 }
 
 /**

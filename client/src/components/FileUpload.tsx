@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 
 interface FileUploadProps {
   onExcelUpload: (file: File) => void;
@@ -15,6 +15,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 }) => {
   const excelRef = useRef<HTMLInputElement>(null);
   const templateRef = useRef<HTMLInputElement>(null);
+  const [excelDrag, setExcelDrag] = useState(false);
+  const [tmplDrag, setTmplDrag] = useState(false);
 
   const handleExcelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -28,15 +30,22 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     e.target.value = '';
   };
 
+  const dragHandlers = (type: 'excel' | 'template') => ({
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); (type === 'excel' ? setExcelDrag : setTmplDrag)(true); },
+    onDragLeave: (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); (type === 'excel' ? setExcelDrag : setTmplDrag)(false); },
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); (type === 'excel' ? setExcelDrag : setTmplDrag)(false); const f = e.dataTransfer.files[0]; if (f) (type === 'excel' ? onExcelUpload : onTemplateUpload)(f); },
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <div 
-          className={excelName ? 'upload-box uploaded' : 'upload-box'}
+          className={`upload-box${excelName ? ' uploaded' : ''}${excelDrag ? ' drag-over' : ''}`}
           onClick={() => excelRef.current?.click()}
           tabIndex={0}
           role="button"
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') excelRef.current?.click(); }}
+          {...dragHandlers('excel')}
         >
           <div className="upload-icon" style={excelName ? { color: 'var(--success-color)' } : {}}>📊</div>
           <div className="upload-title">
@@ -64,13 +73,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       </div>
 
         <div 
-          className={templateName ? 'upload-box uploaded' : 'upload-box'}
+          className={`upload-box${templateName ? ' uploaded' : ''}${tmplDrag ? ' drag-over' : ''}`}
           onClick={() => templateRef.current?.click()}
           tabIndex={0}
           role="button"
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') templateRef.current?.click(); }}
+          {...dragHandlers('template')}
         >
-        <div className="upload-icon" style={templateName ? { color: 'var(--success-color)' } : {}}>🖼️</div>
+          <div className="upload-icon" style={templateName ? { color: 'var(--success-color)' } : {}}>🖼️</div>
         <div className="upload-title">
           {templateName ? 'Шаблон загружен' : 'Загрузите шаблон сертификата'}
         </div>
