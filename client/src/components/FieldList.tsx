@@ -68,7 +68,7 @@ export const FieldList: React.FC<FieldListProps> = ({
                   className="btn btn-danger"
                   style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', borderColor: '#fca5a5' }}
                   title="Удалить"
-                  onClick={() => onDeleteField(field.id)}
+                  onClick={() => { if (window.confirm(`Удалить поле "${field.label}"?`)) onDeleteField(field.id); }}
                 >
                   🗑️
                 </button>
