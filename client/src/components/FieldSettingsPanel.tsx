@@ -127,6 +127,42 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
         </div>
       </div>
 
+      <div className="form-row">
+        <div className="form-group" style={{ justifyContent: 'center' }}>
+          <label>Стиль</label>
+          <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <button
+              type="button"
+              className={`align-btn ${field.bold ? 'active' : ''}`}
+              onClick={() => onUpdateField({ bold: !field.bold })}
+              title="Полужирный"
+              style={{ fontWeight: 'bold', minWidth: '2rem' }}
+            >
+              Ж
+            </button>
+            <button
+              type="button"
+              className={`align-btn ${field.italic ? 'active' : ''}`}
+              onClick={() => onUpdateField({ italic: !field.italic })}
+              title="Курсив"
+              style={{ fontStyle: 'italic', minWidth: '2rem' }}
+            >
+              К
+            </button>
+          </div>
+        </div>
+        <div className="form-group">
+          <label>Межбуквенный интервал</label>
+          <input 
+            type="number" 
+            step="0.5"
+            className="input-control"
+            value={field.letterSpacing}
+            onChange={(e) => onUpdateField({ letterSpacing: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+
       <div className="form-row" style={{ alignItems: 'end' }}>
         <div className="form-group">
           <label>Цвет текста</label>

@@ -5,7 +5,7 @@ import * as path from 'path';
 import archiver from 'archiver';
 import { getDb } from './db.js';
 import type { FieldConfig, ExportConfig, GenerateResult } from '../types/index.js';
-import { getFontBytes, findFontByName, getBundledFontBytes } from './fontService.js';
+import { getFontBytes, findFontByName, findFontVariant, getAllFonts } from './fontService.js';
 import { uiYToPdfY, calculateTextBaselineY, calculateTextX } from '../utils/coordinates.js';
 import { measureTextWidth, wrapText, shrinkTextToFit } from '../utils/textLayout.js';
 import { applyFileNameTemplate } from '../utils/sanitize.js';
@@ -105,17 +105,33 @@ export async function generateSingleCertificate(
     const text = rawText.trim();
     if (!text) continue;
 
-    // Resolve font
+    // Resolve font with bold/italic support
     let fontToUse;
     const customFontInfo = findFontByName(field.fontFamily);
     if (customFontInfo) {
-      const fontBytes = getFontBytes(customFontInfo.id);
+      let fontPath = customFontInfo.filePath;
+      // Try to find bold/italic variant if needed
+      if (field.bold || field.italic) {
+        const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : 'italic';
+        const variant = findFontVariant(fontPath, style);
+        if (variant) fontPath = variant;
+      }
+      const fontBytes = fs.readFileSync(fontPath);
       fontToUse = await pdfDoc.embedFont(fontBytes);
     } else {
       // Try bundled Arial font (supports Cyrillic)
-      const bundledBytes = getBundledFontBytes();
-      if (bundledBytes) {
-        fontToUse = await pdfDoc.embedFont(bundledBytes);
+      let bundledPath: string | null = null;
+      const allFonts = getAllFonts();
+      for (const f of allFonts) {
+        if (f.fileName.toLowerCase() === 'arial.ttf') { bundledPath = f.filePath; break; }
+      }
+      if (bundledPath) {
+        if (field.bold || field.italic) {
+          const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : 'italic';
+          const variant = findFontVariant(bundledPath, style);
+          if (variant) bundledPath = variant;
+        }
+        fontToUse = await pdfDoc.embedFont(fs.readFileSync(bundledPath));
       } else {
         fontToUse = await pdfDoc.embedFont(StandardFonts.Helvetica);
       }

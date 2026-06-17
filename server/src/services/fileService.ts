@@ -67,22 +67,17 @@ export function isSafePath(targetPath: string): boolean {
 }
 
 /**
- * Clean up old files from uploads (optional).
+ * Clean up only temporary Excel uploads on startup.
+ * Templates and fonts are persisted in DB — their files must NOT be deleted.
  */
 export function cleanUploads(): void {
-  const dirs = ['excel', 'templates'];
-  for (const subdir of dirs) {
-    const dirPath = path.join(UPLOADS_DIR, subdir);
-    if (fs.existsSync(dirPath)) {
-      const files = fs.readdirSync(dirPath);
-      for (const file of files) {
-        const filePath = path.join(dirPath, file);
-        try {
-          fs.unlinkSync(filePath);
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-    }
+  const dirPath = path.join(UPLOADS_DIR, 'excel');
+  if (!fs.existsSync(dirPath)) return;
+
+  const files = fs.readdirSync(dirPath);
+  for (const file of files) {
+    try {
+      fs.unlinkSync(path.join(dirPath, file));
+    } catch { /* ignore */ }
   }
 }

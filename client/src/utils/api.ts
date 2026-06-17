@@ -102,6 +102,28 @@ export async function getTemplates(): Promise<TemplateInfo[]> {
   return response.json();
 }
 
+export interface GenerationHistoryItem {
+  id: string;
+  templateId: string;
+  totalRows: number;
+  successCount: number;
+  errorCount: number;
+  exportMode: string;
+  outputPath: string;
+  createdAt: string;
+}
+
+export async function getGenerationHistory(page = 1, limit = 20): Promise<{
+  items: GenerationHistoryItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+}> {
+  const response = await fetch(`${BASE_URL}/generate/history?page=${page}&limit=${limit}`);
+  if (!response.ok) throw new Error('Не удалось получить историю генераций');
+  return response.json();
+}
+
 export async function generateTestPdf(
   row: Record<string, string>,
   templateId: string,
