@@ -7,6 +7,8 @@ import fontkit from '@pdf-lib/fontkit';
 import * as XLSX from 'xlsx';
 import archiver from 'archiver';
 import { Readable } from 'stream';
+import * as fs from 'fs';
+import * as path from 'path';
 import { getStore, type FontRecord, type TemplateRecord, type GenerationRecord } from './store';
 import { uiYToPdfY, calculateTextBaselineY, calculateTextX } from './coordinates';
 import { measureTextWidth, wrapText, shrinkTextToFit } from './textLayout';
@@ -149,6 +151,36 @@ function findFontByBytes(bytes: Uint8Array): FontRecord | undefined {
   return undefined;
 }
 
+// ---------- Fallback built-in font (LiberationSans, free, Cyrillic-capable) ----------
+const FALLBACK_FONTS: Record<string, Uint8Array> = {};
+function loadFallbackFonts(): void {
+  const names = ['LiberationSans-Regular', 'LiberationSans-Bold', 'LiberationSans-Italic', 'LiberationSans-BoldItalic'];
+  const dirs = [
+    path.join(__dirname, 'fonts'),
+    path.join(process.cwd(), 'fonts'),
+    path.join(process.cwd(), 'api', 'fonts'),
+  ];
+  for (const name of names) {
+    for (const dir of dirs) {
+      const fp = path.join(dir, name + '.ttf');
+      try { if (fs.existsSync(fp)) { FALLBACK_FONTS[name] = new Uint8Array(fs.readFileSync(fp)); break; } }
+      catch { /* try next dir */ }
+    }
+  }
+}
+loadFallbackFonts();
+
+function getFallbackFont(style: 'regular' | 'bold' | 'italic' | 'bold-italic'): Uint8Array | null {
+  const map: Record<string, string> = {
+    regular: 'LiberationSans-Regular',
+    bold: 'LiberationSans-Bold',
+    italic: 'LiberationSans-Italic',
+    'bold-italic': 'LiberationSans-BoldItalic',
+  };
+  const key = map[style] || 'LiberationSans-Regular';
+  return FALLBACK_FONTS[key] || FALLBACK_FONTS['LiberationSans-Regular'] || null;
+}
+
 // ---------- PDF Generation ----------
 async function generateSingleCertificate(
   template: TemplateRecord, fields: FieldConfig[],
@@ -186,18 +218,10 @@ async function generateSingleCertificate(
       }
       fontToUse = await pdfDoc.embedFont(fontBytes);
     } else {
-      const store = getStore();
-      let fallbackBytes: Uint8Array | null = null;
-      for (const f of store.fonts.values()) {
-        if (f.fileName.toLowerCase() === 'arial.ttf') { fallbackBytes = f.fileBytes; break; }
-      }
-      if (fallbackBytes) {
-        if (field.bold || field.italic) {
-          const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : 'italic';
-          const variant = findFontVariant(fallbackBytes, style);
-          if (variant) fallbackBytes = variant;
-        }
-        fontToUse = await pdfDoc.embedFont(fallbackBytes);
+      const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : field.italic ? 'italic' : 'regular';
+      const fb = getFallbackFont(style);
+      if (fb) {
+        fontToUse = await pdfDoc.embedFont(fb);
       } else {
         fontToUse = await pdfDoc.embedFont(StandardFonts.Helvetica);
       }
