@@ -1,6 +1,8 @@
 import type { ExcelData, TemplateInfo, FontInfo, FieldConfig, ExportConfig } from '../types/index';
 
-const BASE_URL = '/api';
+const BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
 
 export async function uploadExcel(file: File): Promise<ExcelData & { filePath: string }> {
   const formData = new FormData();
