@@ -5,6 +5,10 @@ interface FileUploadProps {
   onTemplateUpload: (file: File) => void;
   excelName?: string;
   templateName?: string;
+  excelLoading?: boolean;
+  templateLoading?: boolean;
+  excelError?: string | null;
+  templateError?: string | null;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({
@@ -12,6 +16,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   onTemplateUpload,
   excelName,
   templateName,
+  excelLoading,
+  templateLoading,
+  excelError,
+  templateError,
 }) => {
   const excelRef = useRef<HTMLInputElement>(null);
   const templateRef = useRef<HTMLInputElement>(null);
@@ -47,12 +55,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') excelRef.current?.click(); }}
           {...dragHandlers('excel')}
         >
-          <div className="upload-icon" style={excelName ? { color: 'var(--success-color)' } : {}}>📊</div>
+          <div className="upload-icon" style={excelName ? { color: 'var(--success-color)' } : excelError ? { color: 'var(--error-color)' } : {}}>
+            {excelLoading ? '⏳' : excelError ? '❌' : '📊'}
+          </div>
           <div className="upload-title">
-            {excelName ? 'Таблица Excel загружена' : 'Загрузите Excel-таблицу'}
+            {excelLoading ? 'Загрузка...' : excelName ? 'Таблица Excel загружена' : 'Загрузите Excel-таблицу'}
           </div>
           <div className="upload-subtitle">
-            {excelName ? excelName : 'Поддерживаются форматы .xlsx, .xls'}
+            {excelError ? excelError : excelLoading ? 'Подождите...' : excelName ? excelName : 'Поддерживаются форматы .xlsx, .xls'}
           </div>
           <input 
             type="file" 
@@ -80,12 +90,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') templateRef.current?.click(); }}
           {...dragHandlers('template')}
         >
-          <div className="upload-icon" style={templateName ? { color: 'var(--success-color)' } : {}}>🖼️</div>
+          <div className="upload-icon" style={templateName ? { color: 'var(--success-color)' } : templateError ? { color: 'var(--error-color)' } : {}}>
+            {templateLoading ? '⏳' : templateError ? '❌' : '🖼️'}
+          </div>
         <div className="upload-title">
-          {templateName ? 'Шаблон загружен' : 'Загрузите шаблон сертификата'}
+          {templateLoading ? 'Загрузка...' : templateName ? 'Шаблон загружен' : 'Загрузите шаблон сертификата'}
         </div>
         <div className="upload-subtitle">
-          {templateName ? templateName : 'Изображения (PNG/JPG) или PDF'}
+          {templateError ? templateError : templateLoading ? 'Подождите...' : templateName ? templateName : 'Изображения (PNG/JPG) или PDF'}
         </div>
         <input 
           type="file" 

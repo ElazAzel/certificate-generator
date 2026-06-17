@@ -345,6 +345,10 @@ export default function App() {
                   onTemplateUpload={handleTemplateUpload}
                   excelName={excelName}
                   templateName={templateName}
+                  excelLoading={excelLoading}
+                  templateLoading={templateLoading}
+                  excelError={excelError}
+                  templateError={templateError}
                 />
 
                 {(excelError || templateError) && (
