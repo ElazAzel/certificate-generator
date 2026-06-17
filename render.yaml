@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: certgen-backend
+    runtime: node
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npx tsx src/index.ts
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        sync: false

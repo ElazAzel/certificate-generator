@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getDb } from './db.js';
+import { logger } from '../logger.js';
 import type { FontInfo } from '../types/index.js';
 
 function readFontFamilyName(filePath: string): string | null {
@@ -74,6 +75,7 @@ export function scanSystemFonts(): void {
 
   const db = getDb();
   const insert = db.prepare('INSERT OR IGNORE INTO fonts (id, file_name, font_name, file_path) VALUES (?, ?, ?, ?)');
+  let count = 0;
 
   for (const dir of fontDirs) {
     if (!fs.existsSync(dir)) continue;
@@ -88,9 +90,11 @@ export function scanSystemFonts(): void {
         const id = `sys_${fontName.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         insert.run(id, file, fontName, filePath);
+        count++;
       }
     } catch { }
   }
+  logger.info(`Scanned ${count} system fonts`);
 }
 
 export function registerFont(filePath: string, originalName: string): FontInfo {

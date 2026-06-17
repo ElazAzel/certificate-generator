@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth.js';
 import { authRateLimiter } from '../middleware/rateLimit.js';
-import { logger } from '../index.js';
+import { logger } from '../logger.js';
 
 const router = Router();
 

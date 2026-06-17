@@ -1,0 +1,8 @@
+{
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/dist",
+  "installCommand": "npm install --prefix client",
+  "rewrites": [
+    { "source": "/((?!api|uploads|sample-data).*)", "destination": "/index.html" }
+  ]
+}

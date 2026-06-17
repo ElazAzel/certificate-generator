@@ -6,8 +6,8 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import * as fs from 'fs';
-import winston from 'winston';
-import { initDatabase } from './services/db.js';
+import { logger } from './logger.js';
+import { initDatabase, getDb } from './services/db.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import generateRoutes from './routes/generateRoutes.js';
 import downloadRoutes from './routes/downloadRoutes.js';
@@ -18,19 +18,7 @@ import { registerTemplate } from './services/pdfService.js';
 import { authMiddleware, optionalAuth } from './middleware/auth.js';
 import { rateLimiter } from './middleware/rateLimit.js';
 
-// ---- Logger ----
-export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.printf(({ timestamp, level, message }) => `${timestamp} [${level.toUpperCase()}] ${message}`)
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: path.join(process.cwd(), 'data', 'error.log'), level: 'error' }),
-    new winston.transports.File({ filename: path.join(process.cwd(), 'data', 'combined.log') }),
-  ],
-});
+const clientDistPath = path.join(process.cwd(), '..', 'client', 'dist');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,7 +28,15 @@ initDatabase();
 logger.info('Database initialized');
 
 // ---- Middlewares ----
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3001',
+    'https://certificate-generator.vercel.app',
+    'https://certgen-frontend.vercel.app',
+  ],
+  credentials: true,
+}));
 app.use(express.json({ limit: '100mb' }));
 app.use(rateLimiter);
 
@@ -57,17 +53,22 @@ app.use((req, res, next) => {
 // Ensure uploads/output directories exist
 ensureDirectories();
 
-// Clean stale uploads from previous runs
+// Clean stale Excel uploads from previous runs
 cleanUploads();
 
-// Scan system fonts (Windows Fonts folder + bundled fonts)
-scanSystemFonts();
+// Scan system fonts (Windows Fonts folder + bundled fonts) — safe on Linux
+try {
+  scanSystemFonts();
+} catch (err: any) {
+  logger.warn(`Font scanning skipped: ${err.message}`);
+}
 
 // Auto-register default template if шаблон.pdf exists in template/ folder
 (async () => {
   try {
     const templateDir = path.join(process.cwd(), 'template');
-    const files = fs.readdirSync(templateDir).filter(f => f.startsWith('шаблон') && (f.endsWith('.pdf') || f.endsWith('.pdf')));
+    if (!fs.existsSync(templateDir)) return;
+    const files = fs.readdirSync(templateDir).filter(f => f.startsWith('шаблон') && f.endsWith('.pdf'));
     if (files.length > 0) {
       const srcPath = path.join(templateDir, files[0]);
       const destDir = path.join(process.cwd(), 'uploads', 'templates');
@@ -103,7 +104,6 @@ app.use('/api/download', authMiddleware, downloadRoutes);
 app.get('/api/health', (req, res) => {
   let dbConnected = false;
   try {
-    const { getDb } = require('./services/db.js');
     dbConnected = !!getDb();
   } catch {}
   res.json({
@@ -116,8 +116,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// In production, serve the built client app
-const clientDistPath = path.join(process.cwd(), '..', 'client', 'dist');
+// In production, serve the built client app (standalone mode)
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res) => {

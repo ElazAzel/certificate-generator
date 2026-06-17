@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { logger } from '../index.js';
+import { logger } from '../logger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_PASSWORD || 'default-dev-secret-change-me';
 

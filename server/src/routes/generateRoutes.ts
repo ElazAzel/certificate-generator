@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { getDb } from '../services/db.js';
 import { getTemplateById, generateAllCertificates, generateSingleCertificate } from '../services/pdfService.js';
 import { createExportDir, getOutputDir, isSafePath } from '../services/fileService.js';
-import { logger } from '../index.js';
+import { logger } from '../logger.js';
 import type { FieldConfig, ExportConfig } from '../types/index.js';
 
 const router = Router();

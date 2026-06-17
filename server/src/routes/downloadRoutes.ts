@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { getOutputDir } from '../services/fileService.js';
 import { exportProjectZip } from '../services/projectService.js';
-import { logger } from '../index.js';
+import { logger } from '../logger.js';
 
 const router = Router();
 

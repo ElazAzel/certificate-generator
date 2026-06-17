@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { logger } from '../index.js';
+import { logger } from '../logger.js';
 import { getDb } from './db.js';
 import { getTemplateById, generateAllCertificates } from './pdfService.js';
 import { createExportDir, getOutputDir, isSafePath } from './fileService.js';
