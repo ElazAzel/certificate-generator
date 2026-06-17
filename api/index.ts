@@ -93,6 +93,7 @@ function readFontFamilyName(buf: Uint8Array): string | null {
 }
 
 function hexToRgb(hex: string) {
+  if (!hex) return rgb(0, 0, 0);
   const c = hex.replace('#', '');
   const r = parseInt(c.substring(0, 2), 16) / 255;
   const g = parseInt(c.substring(2, 4), 16) / 255;
