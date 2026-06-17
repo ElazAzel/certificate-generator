@@ -6,6 +6,7 @@ client/dist/
 server/dist/
 
 server/uploads/
+uploads/
 server/output/
 server/data/
 
@@ -16,3 +17,5 @@ Thumbs.db
 
 .env
 .env.local
+
+.vercel
