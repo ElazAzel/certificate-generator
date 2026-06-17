@@ -1,13 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { PDFDocument } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import * as path from 'path';
-import * as fs from 'fs';
 import { getDb } from '../services/db.js';
-import { getTemplateById, generateAllCertificates, generateSingleCertificate } from '../services/pdfService.js';
-import { createExportDir, getOutputDir, isSafePath } from '../services/fileService.js';
+import { getTemplateById, generateSingleCertificate } from '../services/pdfService.js';
+import { enqueueGeneration, getQueueStatus } from '../services/generationWorker.js';
 import { logger } from '../logger.js';
-import type { FieldConfig, ExportConfig } from '../types/index.js';
 
 const router = Router();
 
@@ -33,37 +30,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Шаблон не найден на сервере' });
     }
 
-    let targetBaseDir = getOutputDir();
-    if (exportConfig.outputFolder && exportConfig.outputFolder !== 'output') {
-      const userPath = path.resolve(exportConfig.outputFolder);
-      if (isSafePath(userPath)) {
-        targetBaseDir = userPath;
-      }
-    }
-
-    const exportDir = createExportDir(targetBaseDir);
-
-    const result = await generateAllCertificates(
-      template,
-      fields,
-      excelData,
-      exportConfig,
-      exportDir
-    );
-
-    // Save generation history
-    try {
-      const db = getDb();
-      const genId = `gen_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      db.prepare('INSERT INTO generations (id, template_id, total_rows, success_count, error_count, export_mode, output_path) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
-        genId, templateId, result.totalRows, result.successCount, result.errorCount, exportConfig.mode, exportDir
-      );
-      for (const err of result.errors) {
-        db.prepare('INSERT INTO generation_errors (generation_id, row_number, message) VALUES (?, ?, ?)').run(genId, err.row, err.message);
-      }
-    } catch (dbErr) {
-      logger.error(`Failed to save generation history: ${dbErr}`);
-    }
+    const result = await enqueueGeneration({ excelData, templateId, fields, exportConfig });
 
     logger.info(`Generation complete: ${result.successCount}/${result.totalRows} successful`);
     res.json(result);
@@ -71,6 +38,14 @@ router.post('/', async (req: Request, res: Response) => {
     logger.error(`Generation failed: ${err.message}`);
     res.status(500).json({ error: err.message || 'Ошибка генерации сертификатов' });
   }
+});
+
+/**
+ * GET /api/generate/queue
+ * Returns current queue status.
+ */
+router.get('/queue', (_req: Request, res: Response) => {
+  res.json(getQueueStatus());
 });
 
 /**

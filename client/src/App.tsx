@@ -8,6 +8,7 @@ import { TemplateEditor } from './components/TemplateEditor';
 import { ExportSettings } from './components/ExportSettings';
 import { ProgressBar } from './components/ProgressBar';
 import { GenerationResult } from './components/GenerationResult';
+import { GenerationHistory } from './components/GenerationHistory';
 
 import { useExcelData } from './hooks/useExcelData';
 import { useTemplate } from './hooks/useTemplate';
@@ -61,7 +62,7 @@ export default function App() {
   } = useFields();
 
   // 2. Local states
-  const [leftTab, setLeftTab] = useState<'files' | 'fields'>('files');
+  const [leftTab, setLeftTab] = useState<'files' | 'fields' | 'history'>('files');
   const [fonts, setFonts] = useState<FontInfo[]>([]);
   const [scale, setScale] = useState<number>(0.8);
   const [theme, setTheme] = useState<string>(() => localStorage.getItem('theme') || 'light');
@@ -328,6 +329,12 @@ export default function App() {
             >
               ✏️ Поля разметки ({fields.length})
             </button>
+            <button 
+              className={`tab-btn ${leftTab === 'history' ? 'active' : ''}`}
+              onClick={() => setLeftTab('history')}
+            >
+              📊 История
+            </button>
           </div>
           
           <div className="panel-body">
@@ -355,7 +362,7 @@ export default function App() {
                   />
                 )}
               </>
-            ) : (
+            ) : leftTab === 'fields' ? (
               <FieldList
                 fields={fields}
                 activeFieldId={activeFieldId}
@@ -367,6 +374,15 @@ export default function App() {
                 onDeleteField={deleteField}
                 onDuplicateField={duplicateField}
                 excelColumns={excelData?.columns || []}
+              />
+            ) : (
+              <GenerationHistory
+                onDownload={(exportId, type) => {
+                  const url = type === 'zip'
+                    ? `/api/download/zip/${exportId}`
+                    : `/api/download/pdf/${exportId}`;
+                  window.open(url, '_blank');
+                }}
               />
             )}
           </div>

@@ -7,15 +7,13 @@ import express from 'express';
 import cors from 'cors';
 import * as fs from 'fs';
 import { logger } from './logger.js';
-import { initDatabase, getDb } from './services/db.js';
+import { initDatabase } from './services/db.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import generateRoutes from './routes/generateRoutes.js';
 import downloadRoutes from './routes/downloadRoutes.js';
-import authRoutes from './routes/authRoutes.js';
 import { ensureDirectories, cleanUploads } from './services/fileService.js';
 import { scanSystemFonts } from './services/fontService.js';
 import { registerTemplate } from './services/pdfService.js';
-import { authMiddleware, optionalAuth } from './middleware/auth.js';
 import { rateLimiter } from './middleware/rateLimit.js';
 
 const clientDistPath = path.join(process.cwd(), '..', 'client', 'dist');
@@ -28,15 +26,7 @@ initDatabase();
 logger.info('Database initialized');
 
 // ---- Middlewares ----
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3001',
-    'https://certificate-generator.vercel.app',
-    'https://certgen-frontend.vercel.app',
-  ],
-  credentials: true,
-}));
+app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(rateLimiter);
 
@@ -63,28 +53,33 @@ try {
   logger.warn(`Font scanning skipped: ${err.message}`);
 }
 
-// Auto-register default template if шаблон.pdf exists in template/ folder
+// Auto-register default template if any PDF exists in template/ folder
 (async () => {
   try {
-    const templateDir = path.join(process.cwd(), 'template');
-    if (!fs.existsSync(templateDir)) return;
-    const files = fs.readdirSync(templateDir).filter(f => f.startsWith('шаблон') && f.endsWith('.pdf'));
+    const templateDir = path.join(process.cwd(), '..', 'template');
+    if (!fs.existsSync(templateDir)) {
+      logger.info('No template/ dir found, skipping auto-registration');
+      return;
+    }
+    const files = fs.readdirSync(templateDir).filter(f => f.toLowerCase().endsWith('.pdf'));
+    logger.info(`Auto-reg: found ${files.length} PDF(s) in template/: ${files.join(', ')}`);
     if (files.length > 0) {
       const srcPath = path.join(templateDir, files[0]);
       const destDir = path.join(process.cwd(), 'uploads', 'templates');
       if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-      const destPath = path.join(destDir, 'шаблон.pdf');
+      const destName = `template-${Date.now()}.pdf`;
+      const destPath = path.join(destDir, destName);
       fs.copyFileSync(srcPath, destPath);
 
       const { PDFDocument } = await import('pdf-lib');
       const fileBytes = fs.readFileSync(destPath);
       const pdfDoc = await PDFDocument.load(fileBytes);
       const firstPage = pdfDoc.getPage(0);
-      registerTemplate(destPath, 'шаблон.pdf', 'pdf', firstPage.getWidth(), firstPage.getHeight());
-      logger.info('Default template шаблон.pdf loaded');
+      registerTemplate(destPath, files[0], 'pdf', firstPage.getWidth(), firstPage.getHeight());
+      logger.info(`Default template ${files[0]} loaded`);
     }
-  } catch {
-    // template folder or file may not exist
+  } catch (err: any) {
+    logger.warn(`Auto-register template failed: ${err.message}`);
   }
 })();
 
@@ -94,25 +89,17 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Serve sample data statically
 app.use('/sample-data', express.static(path.join(process.cwd(), '..', 'sample-data')));
 
-// ---- Routes ----
-app.use('/api/auth', authRoutes);
-app.use('/api/upload', optionalAuth, uploadRoutes);
-app.use('/api/generate', authMiddleware, generateRoutes);
-app.use('/api/download', authMiddleware, downloadRoutes);
+// ---- Routes (no auth — local tool) ----
+app.use('/api/upload', uploadRoutes);
+app.use('/api/generate', generateRoutes);
+app.use('/api/download', downloadRoutes);
 
 // ---- Health Check ----
 app.get('/api/health', (req, res) => {
-  let dbConnected = false;
-  try {
-    dbConnected = !!getDb();
-  } catch {}
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    memoryUsage: process.memoryUsage().rss,
-    dbConnected,
-    mode: fs.existsSync(clientDistPath) ? 'production' : 'development',
   });
 });
 
