@@ -1,8 +1,15 @@
 {
   "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install --prefix client",
+  "installCommand": "npm install && cd client && npm install",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60,
+      "includeFiles": ["api/**"]
+    }
+  },
   "rewrites": [
-    { "source": "/((?!api|uploads|sample-data).*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/((?!api).*)", "destination": "/index.html" }
   ]
 }
