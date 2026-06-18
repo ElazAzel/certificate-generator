@@ -396,7 +396,11 @@ async function downloadGoogleFont(name: string, weight: string, italic: boolean)
   const staticName = `${name}-${weight}${styleSuffix}`;
 
   const urls = [
+    // Static TTF in static/ subdirectory (for fonts with variable TTFs)
     `https://github.com/google/fonts/raw/main/ofl/${slug}/static/${staticName}.ttf`,
+    // Plain TTF at root level (most common for non-variable fonts)
+    `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}-${weight}${styleSuffix}.ttf`,
+    // Variable font patterns
     `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bwght%5D.ttf`,
     `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bwdth,wght%5D.ttf`,
     `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bital,wght%5D.ttf`,
