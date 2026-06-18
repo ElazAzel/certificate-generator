@@ -501,6 +501,16 @@ app.get('/api/fonts/catalog', async (req, res) => {
   }
 });
 
+// Serve font file for preview
+app.get('/api/fonts/file/:id', (req, res) => {
+  const store = getStore();
+  const font = store.fonts.get(req.params.id);
+  if (!font) return res.status(404).json({ error: 'Font not found' });
+  res.setHeader('Content-Type', 'application/x-font-ttf');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(Buffer.from(font.fileBytes));
+});
+
 // List Templates
 app.get('/api/upload/templates', (_req, res) => {
   const store = getStore();

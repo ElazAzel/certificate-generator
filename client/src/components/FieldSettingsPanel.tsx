@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { FieldConfig, FontInfo, CatalogFontInfo, HAlign, VAlign, TextOverflow } from '../types/index';
 import { getFontCatalog } from '../utils/api';
 
@@ -56,6 +56,29 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
     setSearchResults(null);
     setSearchQuery('');
   };
+
+  // Font preview
+  const selectedFontRec = fonts.find(f => f.fontName === field.fontFamily);
+  const fontFileUrl = selectedFontRec ? `/api/fonts/file/${selectedFontRec.id}` : null;
+  const fontFaceName = useRef<string>('');
+
+  useEffect(() => {
+    const prev = fontFaceName.current;
+    const url = fontFileUrl;
+    if (!url || !selectedFontRec) { fontFaceName.current = ''; return; }
+    const name = `fprev-${selectedFontRec.id}`;
+    fontFaceName.current = name;
+
+    const style = document.createElement('style');
+    style.id = `ffstyle-${selectedFontRec.id}`;
+    style.textContent = `@font-face{font-family:'${name}';src:url('${url}') format('truetype');font-display:swap}`;
+    document.head.appendChild(style);
+
+    return () => {
+      const el = document.getElementById(`ffstyle-${selectedFontRec.id}`);
+      if (el) el.remove();
+    };
+  }, [fontFileUrl]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -157,6 +180,28 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
           />
         </div>
       </div>
+
+      {/* Font preview */}
+      {fontFileUrl && fontFaceName.current && (
+        <div style={{
+          marginTop: '-0.5rem', marginBottom: '0.25rem',
+          padding: '0.5rem', borderRadius: '6px',
+          background: 'var(--surface-secondary, #f5f5f5)',
+          border: '1px solid var(--border, #ddd)',
+          fontSize: `${Math.min(field.fontSize * 0.6, 18)}px`,
+          lineHeight: 1.5, overflow: 'hidden',
+        }}>
+          <div style={{ fontFamily: fontFaceName.current, marginBottom: '0.25rem' }}>
+            {field.label || 'Образец текста'}
+          </div>
+          <div style={{
+            fontFamily: fontFaceName.current, fontSize: '0.7em',
+            color: 'var(--text-tertiary, #999)', opacity: 0.7,
+          }}>
+            Аа Бб Вв Гг Дд Её Жж Зз Ии Йй Кк Лл Мм Нн Оо Пп Рр Сс Тт Уу Фф Хх Цц Чч Шш Щщ Ъъ Ыы Ьь Ээ Юю Яя
+          </div>
+        </div>
+      )}
 
       {/* Google Fonts search */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
