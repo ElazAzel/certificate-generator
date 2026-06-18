@@ -1,11 +1,14 @@
-import React from 'react';
-import type { FieldConfig, FontInfo, HAlign, VAlign, TextOverflow } from '../types/index';
+import React, { useState } from 'react';
+import type { FieldConfig, FontInfo, CatalogFontInfo, HAlign, VAlign, TextOverflow } from '../types/index';
+import { getFontCatalog } from '../utils/api';
 
 interface FieldSettingsPanelProps {
   field?: FieldConfig;
   onUpdateField: (updates: Partial<FieldConfig>) => void;
   excelColumns: string[];
   fonts: FontInfo[];
+  fontCatalog: CatalogFontInfo[];
+  onDownloadGoogleFont: (fontName: string) => void;
 }
 
 export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
@@ -13,7 +16,14 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
   onUpdateField,
   excelColumns,
   fonts,
+  fontCatalog,
+  onDownloadGoogleFont,
 }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<CatalogFontInfo[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
   if (!field) {
     return (
       <div className="settings-empty">
@@ -25,6 +35,27 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
   const allFontsList = fonts.length > 0
     ? fonts.map(f => f.fontName)
     : ['Arial'];
+
+  const handleSearch = async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setSearching(true);
+    try {
+      const result = await getFontCatalog(q);
+      setSearchResults(result.items);
+    } catch {
+      setSearchResults([]);
+    }
+    setSearching(false);
+  };
+
+  const handleDownload = async (fontName: string) => {
+    setDownloading(fontName);
+    await onDownloadGoogleFont(fontName);
+    setDownloading(null);
+    setSearchResults(null);
+    setSearchQuery('');
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -125,6 +156,96 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
             onChange={(e) => onUpdateField({ fontSize: Number(e.target.value) })}
           />
         </div>
+      </div>
+
+      {/* Google Fonts search */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+        <details>
+          <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+            Загрузить из Google Fonts...
+          </summary>
+          <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.4rem' }}>
+            <input
+              type="text"
+              className="input-control"
+              placeholder="Название шрифта (например, Roboto)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              style={{ flex: 1, fontSize: '0.8rem' }}
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleSearch}
+              disabled={searching || !searchQuery.trim()}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {searching ? '...' : 'Найти'}
+            </button>
+          </div>
+
+          {/* Search results */}
+          {searchResults && searchResults.length === 0 && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.35rem' }}>
+              Шрифты не найдены
+            </div>
+          )}
+          {searchResults && searchResults.length > 0 && (
+            <div style={{ maxHeight: '200px', overflowY: 'auto', marginTop: '0.4rem', border: '1px solid var(--border)', borderRadius: '4px' }}>
+              {searchResults.map((f) => {
+                const alreadyInstalled = fonts.some(ff => ff.fontName === f.fontName);
+                return (
+                  <div key={f.fontName} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '0.3rem 0.5rem', borderBottom: '1px solid var(--border)',
+                    fontSize: '0.8rem',
+                  }}>
+                    <span>
+                      <strong>{f.fontName}</strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginLeft: '0.4rem' }}>
+                        {f.category}
+                      </span>
+                    </span>
+                    {alreadyInstalled ? (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--success)' }}>Установлен</span>
+                    ) : (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleDownload(f.fontName)}
+                        disabled={downloading === f.fontName}
+                        style={{ fontSize: '0.7rem' }}
+                      >
+                        {downloading === f.fontName ? '...' : '⬇ Загрузить'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Popular fonts quick-list */}
+          {!searchResults && (
+            <div style={{ marginTop: '0.4rem' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '0.25rem' }}>
+                Популярные:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                {fontCatalog.filter(f => !fonts.some(ff => ff.fontName === f.fontName)).slice(0, 12).map(f => (
+                  <button
+                    key={f.fontName}
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => handleDownload(f.fontName)}
+                    disabled={downloading === f.fontName}
+                    style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem' }}
+                  >
+                    {downloading === f.fontName ? '...' : `+${f.fontName}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </details>
       </div>
 
       <div className="form-row">

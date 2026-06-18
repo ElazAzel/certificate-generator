@@ -441,6 +441,61 @@ app.post('/api/fonts/google', async (req, res) => {
   }
 });
 
+// ---------- Font Catalog (Google Fonts discovery) ----------
+let _catalogCache: any[] | null = null;
+let _catalogFetching: Promise<any[]> | null = null;
+
+async function fetchGoogleFontsCatalog(): Promise<any[]> {
+  if (_catalogCache) return _catalogCache;
+  if (_catalogFetching) return _catalogFetching;
+  _catalogFetching = (async () => {
+    try {
+      const resp = await fetch('https://fonts.google.com/metadata/fonts', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(15000),
+      });
+      let text = await resp.text();
+      if (text.startsWith(")]}'")) text = text.slice(5);
+      const data = JSON.parse(text);
+      _catalogCache = data.familyMetadataList || [];
+      return _catalogCache;
+    } catch { return []; }
+    finally { _catalogFetching = null; }
+  })();
+  return _catalogFetching;
+}
+
+app.get('/api/fonts/catalog', async (req, res) => {
+  try {
+    const source = (req.query.source as string) || 'google';
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+    const search = (req.query.search as string || '').toLowerCase();
+
+    let list: any[];
+    if (source === 'google') {
+      list = await fetchGoogleFontsCatalog();
+    } else {
+      return res.status(400).json({ error: 'Unknown source' });
+    }
+
+    if (search) list = list.filter((f: any) => f.family.toLowerCase().includes(search));
+
+    const store = getStore();
+    const installedNames = new Set(Array.from(store.fonts.values()).map(f => f.fontName.toLowerCase()));
+
+    const items = list.slice(0, limit).map((f: any) => ({
+      fontName: f.family,
+      category: f.category || 'sans-serif',
+      variants: f.variants || ['regular'],
+      downloaded: installedNames.has(f.family.toLowerCase()),
+    }));
+
+    res.json({ items, total: list.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Catalog fetch failed' });
+  }
+});
+
 // List Templates
 app.get('/api/upload/templates', (_req, res) => {
   const store = getStore();

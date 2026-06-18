@@ -19,6 +19,13 @@ export interface FontInfo {
   fontName: string;
 }
 
+export interface CatalogFontInfo {
+  fontName: string;
+  category: string;
+  variants: string[];
+  downloaded: boolean;
+}
+
 export type TextOverflow = 'single-line' | 'multiline' | 'shrink-to-fit' | 'clip';
 export type HAlign = 'left' | 'center' | 'right';
 export type VAlign = 'top' | 'middle' | 'bottom';

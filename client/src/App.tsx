@@ -14,9 +14,9 @@ import { useExcelData } from './hooks/useExcelData';
 import { useTemplate } from './hooks/useTemplate';
 import { useFields } from './hooks/useFields';
 
-import type { FontInfo, ExportConfig, ProjectConfig, FieldConfig } from './types/index';
+import type { FontInfo, ExportConfig, ProjectConfig, FieldConfig, CatalogFontInfo } from './types/index';
 import type { GenerateResponse } from './utils/api';
-import { getFonts, uploadFont, generateCertificates, generateTestPdf, getTemplates } from './utils/api';
+import { getFonts, uploadFont, generateCertificates, generateTestPdf, getTemplates, getFontCatalog, downloadGoogleFont } from './utils/api';
 
 
 import './styles/global.css';
@@ -64,6 +64,7 @@ export default function App() {
   // 2. Local states
   const [leftTab, setLeftTab] = useState<'files' | 'fields' | 'history'>('files');
   const [fonts, setFonts] = useState<FontInfo[]>([]);
+  const [fontCatalog, setFontCatalog] = useState<CatalogFontInfo[]>([]);
   const [scale, setScale] = useState<number>(0.8);
   const [theme, setTheme] = useState<string>(() => localStorage.getItem('theme') || 'light');
   const [exportConfig, setExportConfig] = useState<ExportConfig>({
@@ -91,13 +92,22 @@ export default function App() {
     setTimeout(() => setToast(null), type === 'error' ? 5000 : 3000);
   };
 
-  // 3. Load custom fonts list and existing templates on mount
+  // 3. Load custom fonts list, catalog, and existing templates on mount
   const loadFontsList = async () => {
     try {
       const list = await getFonts();
       setFonts(list);
     } catch (e) {
       console.warn('Fonts API:', e);
+    }
+  };
+
+  const loadFontCatalog = async () => {
+    try {
+      const { items } = await getFontCatalog();
+      setFontCatalog(items);
+    } catch (e) {
+      console.warn('Font catalog API:', e);
     }
   };
 
@@ -114,6 +124,7 @@ export default function App() {
 
   useEffect(() => {
     loadFontsList();
+    loadFontCatalog();
     loadDefaultTemplate();
   }, []);
 
@@ -148,6 +159,18 @@ export default function App() {
       loadFontsList();
     } catch (err: any) {
       showToast(`Ошибка при загрузке шрифта: ${err.message}`, 'error');
+    }
+  };
+
+  const handleDownloadGoogleFont = async (fontName: string) => {
+    try {
+      showToast(`Загрузка ${fontName}...`, 'success');
+      await downloadGoogleFont(fontName);
+      showToast(`Шрифт ${fontName} установлен`, 'success');
+      loadFontsList();
+      loadFontCatalog();
+    } catch (err: any) {
+      showToast(`Ошибка: ${err.message}`, 'error');
     }
   };
 
@@ -417,6 +440,8 @@ export default function App() {
               onUpdateField={(updates) => activeFieldId && updateField(activeFieldId, updates)}
               excelColumns={excelData?.columns || []}
               fonts={fonts}
+              fontCatalog={fontCatalog}
+              onDownloadGoogleFont={handleDownloadGoogleFont}
             />
 
             {validationErrors.length > 0 && (

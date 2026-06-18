@@ -1,4 +1,4 @@
-import type { ExcelData, TemplateInfo, FontInfo, FieldConfig, ExportConfig } from '../types/index';
+import type { ExcelData, TemplateInfo, FontInfo, FieldConfig, ExportConfig, CatalogFontInfo } from '../types/index';
 
 const BASE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
@@ -145,4 +145,26 @@ export async function generateTestPdf(
   }
 
   return response.blob();
+}
+
+export async function getFontCatalog(search?: string): Promise<{ items: CatalogFontInfo[]; total: number }> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  params.set('limit', '200');
+  const response = await fetch(`${BASE_URL}/fonts/catalog?${params}`);
+  if (!response.ok) throw new Error('Не удалось получить каталог шрифтов');
+  return response.json();
+}
+
+export async function downloadGoogleFont(fontName: string): Promise<FontInfo> {
+  const response = await fetch(`${BASE_URL}/fonts/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: fontName, weight: 'Regular' }),
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Ошибка загрузки шрифта');
+  }
+  return response.json();
 }
