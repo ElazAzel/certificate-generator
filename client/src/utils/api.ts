@@ -140,8 +140,12 @@ export async function generateTestPdf(
   });
 
   if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error || 'Ошибка генерации тестового превью');
+    let msg = 'Ошибка генерации тестового превью';
+    try {
+      const err = await response.json();
+      if (err.error) msg = err.error;
+    } catch { /* ignore parse errors */ }
+    throw new Error(msg);
   }
 
   return response.blob();

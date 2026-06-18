@@ -247,7 +247,12 @@ async function generateSingleCertificate(
         const variant = findFontVariant(fontBytes, style);
         if (variant) fontBytes = variant;
       }
-      fontToUse = await pdfDoc.embedFont(fontBytes);
+      try {
+        fontToUse = await pdfDoc.embedFont(fontBytes);
+      } catch {
+        const fb = getFallbackFont('regular');
+        fontToUse = await pdfDoc.embedFont(fb ?? StandardFonts.Helvetica);
+      }
     } else {
       const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : field.italic ? 'italic' : 'regular';
       const fb = getFallbackFont(style);
@@ -525,7 +530,7 @@ app.post('/api/generate/test', async (req, res) => {
     if (!templateId) return res.status(400).json({ error: 'Не указан шаблон' });
     const store = getStore();
     const template = store.templates.get(templateId);
-    if (!template) return res.status(400).json({ error: 'Шаблон не найден' });
+    if (!template) return res.status(400).json({ error: 'Шаблон не найден (перезагрузите шаблон)' });
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
     await generateSingleCertificate(template, fields || [], row, pdfDoc);
