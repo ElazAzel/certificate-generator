@@ -152,20 +152,45 @@ function findFontByBytes(bytes: Uint8Array): FontRecord | undefined {
   return undefined;
 }
 
-// ---------- Fallback built-in font (LiberationSans, free, Cyrillic-capable) ----------
+// ---------- Fallback built-in fonts (LiberationSans, free, Cyrillic-capable) ----------
 const FALLBACK_FONTS: Record<string, Uint8Array> = {};
 function loadFallbackFonts(): void {
-  const names = ['LiberationSans-Regular', 'LiberationSans-Bold', 'LiberationSans-Italic', 'LiberationSans-BoldItalic'];
+  // Scan fonts/ directory for TTF files
   const dirs = [
     path.join(__dirname, 'fonts'),
     path.join(process.cwd(), 'fonts'),
     path.join(process.cwd(), 'api', 'fonts'),
   ];
-  for (const name of names) {
+  const ttfFiles: string[] = [];
+  for (const dir of dirs) {
+    try {
+      if (fs.existsSync(dir)) {
+        for (const f of fs.readdirSync(dir)) {
+          if (f.toLowerCase().endsWith('.ttf') && !ttfFiles.includes(f)) {
+            ttfFiles.push(f);
+          }
+        }
+      }
+    } catch { /* skip */ }
+  }
+  // Load and register each font
+  const store = getStore();
+  for (const ttfFile of ttfFiles) {
+    const name = ttfFile.replace(/\.ttf$/i, '');
     for (const dir of dirs) {
-      const fp = path.join(dir, name + '.ttf');
-      try { if (fs.existsSync(fp)) { FALLBACK_FONTS[name] = new Uint8Array(fs.readFileSync(fp)); break; } }
-      catch { /* try next dir */ }
+      const fp = path.join(dir, ttfFile);
+      try {
+        if (fs.existsSync(fp)) {
+          const bytes = new Uint8Array(fs.readFileSync(fp));
+          FALLBACK_FONTS[name] = bytes;
+          const id = 'builtin_' + name;
+          if (!store.fonts.has(id)) {
+            const fontName = fontNameFromFile(ttfFile);
+            store.fonts.set(id, { id, fileName: ttfFile, fontName, fileBytes: bytes });
+          }
+          break;
+        }
+      } catch { /* try next dir */ }
     }
   }
 }
@@ -180,6 +205,11 @@ function getFallbackFont(style: 'regular' | 'bold' | 'italic' | 'bold-italic'): 
   };
   const key = map[style] || 'LiberationSans-Regular';
   return FALLBACK_FONTS[key] || FALLBACK_FONTS['LiberationSans-Regular'] || null;
+}
+
+/** Derive a display font name from a TTF filename (e.g. "LiberationSans-Regular.ttf" -> "Liberation Sans Regular") */
+function fontNameFromFile(ttfFile: string): string {
+  return ttfFile.replace(/\.ttf$/i, '').replace(/[-_]/g, ' ');
 }
 
 // ---------- PDF Generation ----------
@@ -357,6 +387,54 @@ app.get('/api/upload/fonts', (_req, res) => {
     id: f.id, fileName: f.fileName, fontName: f.fontName,
   }));
   res.json(fonts);
+});
+
+// ---------- Google Fonts download ----------
+async function downloadGoogleFont(name: string, weight: string, italic: boolean): Promise<{ bytes: Uint8Array; fileName: string } | null> {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const styleSuffix = italic ? 'Italic' : '';
+  const staticName = `${name}-${weight}${styleSuffix}`;
+
+  const urls = [
+    `https://github.com/google/fonts/raw/main/ofl/${slug}/static/${staticName}.ttf`,
+    `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bwght%5D.ttf`,
+    `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bwdth,wght%5D.ttf`,
+    `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bital,wght%5D.ttf`,
+  ];
+
+  for (const url of urls) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) continue;
+      const buf = await resp.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      if (bytes.length < 12) continue;
+      // Verify OpenType magic: 0x00010000 or 'true' or 'OTTO'
+      const magic = bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3];
+      if (magic !== 0x00010000 && magic !== 0x74727565 && magic !== 0x4f54544f) continue;
+      return { bytes, fileName: decodeURIComponent(url.substring(url.lastIndexOf('/') + 1)) };
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
+app.post('/api/fonts/google', async (req, res) => {
+  try {
+    const { name, weight = 'Regular', italic = false } = req.body;
+    if (!name || typeof name !== 'string') return res.status(400).json({ error: 'Font name required (e.g. "Roboto")' });
+
+    const normalizedWeight = weight.charAt(0).toUpperCase() + weight.slice(1).toLowerCase();
+    const result = await downloadGoogleFont(name, normalizedWeight, italic);
+    if (!result) return res.status(404).json({ error: `Font "${name}" not found on GitHub mirror. Try manual upload.` });
+
+    const store = getStore();
+    const id = 'google_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + normalizedWeight.toLowerCase() + (italic ? '_italic' : '');
+    store.fonts.set(id, { id, fileName: result.fileName, fontName: name, fileBytes: result.bytes });
+
+    res.json({ id, fontName: name, fileName: result.fileName, sizeBytes: result.bytes.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Google Font download failed' });
+  }
 });
 
 // List Templates
