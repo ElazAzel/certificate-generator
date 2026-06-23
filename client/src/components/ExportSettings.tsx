@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ExportConfig } from '../types/index';
+import { IconTestPdf, IconGenerate, IconSpinner, IconWarning } from './Icons';
 
 interface ExportSettingsProps {
   config: ExportConfig;
@@ -74,18 +75,24 @@ export const ExportSettings: React.FC<ExportSettingsProps> = ({
           onClick={onGenerateTest}
           disabled={!isValid || isGenerating}
           title="Сгенерировать PDF-файл для текущей выбранной строки, чтобы проверить шрифты и позиции"
+          style={{ whiteSpace: 'nowrap' }}
         >
-          🔍 Тестовый PDF
+          <IconTestPdf size={16} /> Тестовый PDF
         </button>
         
         <button 
-          className="btn btn-primary"
-          style={{ padding: '0.75rem 1.5rem', fontWeight: '600', fontSize: '0.95rem' }}
+          className="footer-generate-btn"
           onClick={onGenerate}
           disabled={!isValid || isGenerating}
         >
-          {isGenerating ? 'Генерация...' : '🚀 Создать сертификаты'}
+          {isGenerating ? <><IconSpinner size={18} /> Генерация...</> : <><IconGenerate size={18} /> Создать сертификаты</>}
         </button>
+
+        {!isValid && !isGenerating && (
+          <span style={{ fontSize: '0.7rem', color: 'var(--danger)', fontWeight: 500, maxWidth: '180px', lineHeight: 1.3 }}>
+            <IconWarning size={14} /> Устраните ошибки настройки
+          </span>
+        )}
       </div>
     </div>
   );

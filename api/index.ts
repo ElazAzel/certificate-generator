@@ -9,6 +9,8 @@ import archiver from 'archiver';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { getStore, type FontRecord, type TemplateRecord, type GenerationRecord } from './store';
 import { uiYToPdfY, calculateTextBaselineY, calculateTextX } from './coordinates';
 import { measureTextWidth, wrapText, shrinkTextToFit } from './textLayout';
@@ -34,10 +36,31 @@ interface ExportConfig {
   combinedFileName: string;
 }
 
+// ---------- Helpers ----------
+function simpleLog(level: string, msg: string) {
+  const ts = new Date().toISOString();
+  console[level === 'error' ? 'error' : 'log'](`[${ts}] [${level.toUpperCase()}] ${msg}`);
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_PASSWORD || 'default-dev-secret-change-me';
+
+function generateToken(): string {
+  return jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+}
+
 // ---------- Express App ----------
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
+
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    simpleLog('info', `${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+  });
+  next();
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -152,15 +175,28 @@ function findFontByBytes(bytes: Uint8Array): FontRecord | undefined {
   return undefined;
 }
 
-// ---------- Fallback built-in fonts (LiberationSans, free, Cyrillic-capable) ----------
+// ---------- Fallback built-in fonts (DejaVu + LiberationSans, free, Cyrillic-capable) ----------
 const FALLBACK_FONTS: Record<string, Uint8Array> = {};
+
+/** All possible directories to scan for bundled .ttf fonts */
+function getFontScanDirs(): string[] {
+  const candidates = new Set<string>();
+  // Vercel serverless typical paths
+  candidates.add(path.join(__dirname, 'fonts'));
+  candidates.add(path.join(process.cwd(), 'fonts'));
+  candidates.add(path.join(process.cwd(), 'api', 'fonts'));
+  // Vercel .vercel/output/... paths
+  try {
+    const vercelDir = path.join(process.cwd(), '.vercel');
+    if (fs.existsSync(vercelDir)) {
+      candidates.add(path.join(vercelDir, 'output', 'functions', 'api', 'fonts'));
+    }
+  } catch { /* skip */ }
+  return Array.from(candidates);
+}
+
 function loadFallbackFonts(): void {
-  // Scan fonts/ directory for TTF files
-  const dirs = [
-    path.join(__dirname, 'fonts'),
-    path.join(process.cwd(), 'fonts'),
-    path.join(process.cwd(), 'api', 'fonts'),
-  ];
+  const dirs = getFontScanDirs();
   const ttfFiles: string[] = [];
   for (const dir of dirs) {
     try {
@@ -196,18 +232,25 @@ function loadFallbackFonts(): void {
 }
 loadFallbackFonts();
 
+/** Fallback font style → filename map (tried in order) */
+const FALLBACK_FONT_MAP: Record<string, [string, string][]> = {
+  'regular':      [['DejaVuSans', 'LiberationSans-Regular'], ['DejaVuSerif', 'LiberationSerif-Regular']],
+  'bold':         [['DejaVuSans-Bold', 'LiberationSans-Bold'], ['DejaVuSerif-Bold', 'LiberationSerif-Bold']],
+  'italic':       [['DejaVuSans-Oblique', 'LiberationSans-Italic'], ['DejaVuSerif-Italic', 'LiberationSerif-Italic']],
+  'bold-italic':  [['DejaVuSans-BoldOblique', 'LiberationSans-BoldItalic'], ['DejaVuSerif-BoldItalic', 'LiberationSerif-BoldItalic']],
+};
+
 function getFallbackFont(style: 'regular' | 'bold' | 'italic' | 'bold-italic'): Uint8Array | null {
-  const map: Record<string, string> = {
-    regular: 'LiberationSans-Regular',
-    bold: 'LiberationSans-Bold',
-    italic: 'LiberationSans-Italic',
-    'bold-italic': 'LiberationSans-BoldItalic',
-  };
-  const key = map[style] || 'LiberationSans-Regular';
-  return FALLBACK_FONTS[key] || FALLBACK_FONTS['LiberationSans-Regular'] || null;
+  const candidates = FALLBACK_FONT_MAP[style] || FALLBACK_FONT_MAP['regular'];
+  for (const [name] of candidates) {
+    if (FALLBACK_FONTS[name]) return FALLBACK_FONTS[name];
+  }
+  // ultimate fallback: any TTF we have
+  const values = Object.values(FALLBACK_FONTS);
+  return values.length > 0 ? values[0] : null;
 }
 
-/** Derive a display font name from a TTF filename (e.g. "LiberationSans-Regular.ttf" -> "Liberation Sans Regular") */
+/** Derive a display font name from a TTF filename (e.g. "DejaVuSans-Regular.ttf" -> "DejaVu Sans Regular") */
 function fontNameFromFile(ttfFile: string): string {
   return ttfFile.replace(/\.ttf$/i, '').replace(/[-_]/g, ' ');
 }
@@ -304,6 +347,69 @@ async function generateSingleCertificate(
 }
 
 // ---------- Routes ----------
+
+// Auth — POST /api/auth/login
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!process.env.ADMIN_PASSWORD) {
+      const token = generateToken();
+      return res.json({ token, expiresIn: '24h', mode: 'no-auth' });
+    }
+
+    if (!password) {
+      return res.status(400).json({ error: 'Пароль не указан' });
+    }
+
+    const isValid = bcrypt.compareSync(password, process.env.ADMIN_PASSWORD);
+    if (!isValid) {
+      simpleLog('warn', 'Failed login attempt');
+      return res.status(401).json({ error: 'Неверный пароль' });
+    }
+
+    const token = generateToken();
+    simpleLog('info', 'Successful login');
+    res.json({ token, expiresIn: '24h' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка входа' });
+  }
+});
+
+// Auth — GET /api/auth/status
+app.get('/api/auth/status', (_req, res) => {
+  res.json({
+    authConfigured: !!process.env.ADMIN_PASSWORD,
+    mode: process.env.ADMIN_PASSWORD ? 'password' : 'open',
+  });
+});
+
+// Sample data — GET /api/sample-data/:file
+app.get('/api/sample-data/:file', (req, res) => {
+  const possibleDirs = [
+    path.join(process.cwd(), '..', 'sample-data'),
+    path.join(process.cwd(), 'sample-data'),
+  ];
+  for (const dir of possibleDirs) {
+    try {
+      if (!fs.existsSync(dir)) continue;
+      const filePath = path.join(dir, path.basename(req.params.file));
+      if (!fs.existsSync(filePath)) continue;
+      const ext = path.extname(filePath).toLowerCase();
+      const mime: Record<string, string> = {
+        '.json': 'application/json',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.csv': 'text/csv',
+      };
+      res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+      return res.send(fs.readFileSync(filePath));
+    } catch { /* try next */ }
+  }
+  res.status(404).json({ error: 'File not found' });
+});
 
 // Health
 app.get('/api/health', (_req, res) => {
@@ -453,7 +559,7 @@ let _catalogFetching: Promise<any[]> | null = null;
 async function fetchGoogleFontsCatalog(): Promise<any[]> {
   if (_catalogCache) return _catalogCache;
   if (_catalogFetching) return _catalogFetching;
-  _catalogFetching = (async () => {
+  _catalogFetching = (async (): Promise<any[]> => {
     try {
       const resp = await fetch('https://fonts.google.com/metadata/fonts', {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
@@ -463,11 +569,11 @@ async function fetchGoogleFontsCatalog(): Promise<any[]> {
       if (text.startsWith(")]}'")) text = text.slice(5);
       const data = JSON.parse(text);
       _catalogCache = data.familyMetadataList || [];
-      return _catalogCache;
+      return _catalogCache as any[];
     } catch { return []; }
     finally { _catalogFetching = null; }
   })();
-  return _catalogFetching;
+  return _catalogFetching as Promise<any[]>;
 }
 
 app.get('/api/fonts/catalog', async (req, res) => {
@@ -690,6 +796,26 @@ app.get('/api/generate/history/:id', (req, res) => {
   const gen = store.generations.find(g => g.id === req.params.id);
   if (!gen) return res.status(404).json({ error: 'Не найдено' });
   res.json(gen);
+});
+
+// Download sample Excel template
+app.get('/api/download/excel-template', (_req, res) => {
+  try {
+    const wb = XLSX.utils.book_new();
+    const sampleData = [
+      { name: 'Иван Иванов', email: 'ivan@example.com', certificate_number: '001', course: 'Курс по TypeScript', date: '2024-01-15' },
+      { name: 'Мария Петрова', email: 'maria@example.com', certificate_number: '002', course: 'Курс по React', date: '2024-01-20' },
+      { name: 'Алексей Сидоров', email: 'alex@example.com', certificate_number: '003', course: 'Курс по Node.js', date: '2024-02-01' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Участники');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="template.xlsx"');
+    res.send(Buffer.from(buf));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка создания шаблона' });
+  }
 });
 
 // Queue status (no real queue on serverless, just return empty)

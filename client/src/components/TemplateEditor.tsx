@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { FieldConfig, TemplateInfo } from '../types/index';
+import { IconSpinner, IconImage } from './Icons';
 
 interface TemplateEditorProps {
   template?: TemplateInfo;
@@ -10,6 +11,8 @@ interface TemplateEditorProps {
   currentRowData?: Record<string, string>;
   scale: number;
   onScaleChange: (scale: number) => void;
+  excelLoaded?: boolean;
+  fieldsCount?: number;
 }
 
 export const TemplateEditor: React.FC<TemplateEditorProps> = ({
@@ -21,6 +24,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   currentRowData = {},
   scale,
   onScaleChange,
+  excelLoaded = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -194,11 +198,46 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     return (
       <div className="editor-workspace">
         <div className="editor-canvas-container" style={{ minHeight: '380px' }}>
-          <div className="empty-state">
-            <span className="empty-state-icon">🖼️</span>
-            <h3>Редактор макета</h3>
-            <p>Загрузите шаблон сертификата, чтобы настроить расположение текстовых полей.</p>
-          </div>
+          {!excelLoaded ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', textAlign: 'center', padding: '2rem',
+            }}>
+              <span style={{ marginBottom: '1rem', opacity: 0.7, color: 'var(--text-tertiary)' }}><IconImage size={64} /></span>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text)' }}>
+                Редактор макета
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '360px', lineHeight: 1.6 }}>
+                После загрузки шаблона сертификата здесь появится визуальный редактор.
+              </p>
+              <div className="quick-start-card" style={{ marginTop: '1.5rem', width: '100%', maxWidth: '400px', textAlign: 'left' }}>
+                <h4>Как это работает:</h4>
+                <ol>
+                  <li>Загрузите Excel с участниками (левая панель)</li>
+                  <li>Загрузите шаблон сертификата в формате PNG, JPG или PDF</li>
+                  <li>Перетаскивайте текстовые поля прямо на шаблоне</li>
+                  <li>Настройте шрифты, цвета и положение полей</li>
+                </ol>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', textAlign: 'center', padding: '2rem',
+            }}>
+              <span style={{ marginBottom: '1rem', opacity: 0.7, color: 'var(--text-tertiary)' }}><IconImage size={48} /></span>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text)' }}>
+                Загрузите шаблон сертификата
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '320px' }}>
+                Нажмите на область загрузки шаблона в левой панели и выберите PNG, JPG или PDF-файл.
+              </p>
+              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <span className="badge badge-success">Excel загружен</span>
+                <span className="badge badge-warning">Шаблон не загружен</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -211,19 +250,17 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     <div className="editor-workspace" ref={containerRef}>
       <div className="editor-toolbar">
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Масштаб:</span>
-          <select 
-            className="input-control" 
-            value={scale} 
-            onChange={(e) => onScaleChange(Number(e.target.value))}
-            style={{ width: '80px', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-          >
-            <option value={0.5}>50%</option>
-            <option value={0.75}>75%</option>
-            <option value={1}>100%</option>
-            <option value={1.25}>125%</option>
-            <option value={1.5}>150%</option>
-          </select>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Масштаб:</span>
+          <input 
+            type="range" 
+            min="25" max="200" value={Math.round(scale * 100)}
+            onChange={(e) => onScaleChange(Number(e.target.value) / 100)}
+            style={{ width: '80px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+            aria-label="Масштаб"
+          />
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', minWidth: '3ch' }}>
+            {Math.round(scale * 100)}%
+          </span>
           <button 
             className="btn btn-secondary" 
             onClick={handleFit}
@@ -249,8 +286,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         >
           {template.type === 'pdf' && pdfLoading ? (
             <div className="canvas-bg-pdf" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: 'var(--text-light)', fontSize: '0.9rem', fontWeight: 500 }}>
-                ⏳ Загрузка PDF...
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-tertiary)', fontSize: '0.9rem', fontWeight: 500 }}>
+                <IconSpinner size={20} /> Загрузка PDF...
               </span>
             </div>
           ) : template.type === 'pdf' && pdfPreviewUrl ? (

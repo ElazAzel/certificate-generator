@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import type { ProjectConfig } from '../types/index';
+import { IconFont, IconImport, IconExport, IconDelete, IconThemeLight, IconThemeDark, IconSpinner } from './Icons';
 
 interface HeaderProps {
   onLoadConfig: (config: ProjectConfig) => void;
@@ -65,36 +66,30 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="app-header">
       <div className="header-logo">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#4F46E5" stroke="#4F46E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2 17L12 22L22 17" stroke="#4F46E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2 12L12 17L22 12" stroke="#4F46E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="var(--primary)" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 17L12 22L22 17" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 12L12 17L22 12" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
         <h1>Генератор сертификатов</h1>
       </div>
 
       <div className="header-actions">
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <button 
-            className="btn btn-ghost btn-sm"
-            onClick={() => fontInputRef.current?.click()}
-            disabled={fontLoading}
-          >
-            {fontLoading ? '⏳ Загрузка...' : '🔤 Шрифт'}
-          </button>
-          <input 
-            type="file" 
-            ref={fontInputRef} 
-            onChange={handleFontFileChange} 
-            accept=".ttf,.otf" 
-            style={{ display: 'none' }} 
-          />
-
-          {uploadedFonts.length > 0 && (
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>
-              {uploadedFonts.length}
-            </span>
-          )}
-        </div>
+        <button 
+          className="btn btn-ghost btn-sm"
+          onClick={() => fontInputRef.current?.click()}
+          disabled={fontLoading}
+          data-tooltip="Загрузить свой TTF/OTF шрифт"
+          aria-label="Загрузить шрифт"
+        >
+          {fontLoading ? <IconSpinner size={16} /> : <IconFont size={16} />} <span style={{ fontSize: '0.7rem' }}>Шрифт{uploadedFonts.length > 0 ? ` (${uploadedFonts.length})` : ''}</span>
+        </button>
+        <input 
+          type="file" 
+          ref={fontInputRef} 
+          onChange={handleFontFileChange} 
+          accept=".ttf,.otf" 
+          style={{ display: 'none' }} 
+        />
 
         <span className="header-divider" />
 
@@ -102,8 +97,9 @@ export const Header: React.FC<HeaderProps> = ({
           className="btn btn-ghost btn-sm"
           onClick={() => fileInputRef.current?.click()}
           data-tooltip="Загрузить JSON-конфигурацию полей"
+          aria-label="Импорт JSON конфигурации"
         >
-          📥 Импорт
+          <IconImport size={16} /> <span style={{ fontSize: '0.7rem' }}>Импорт JSON</span>
         </button>
         <input 
           type="file" 
@@ -118,22 +114,26 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onSaveConfig}
           disabled={!isConfigLoaded}
         >
-          📤 Экспорт
+          <IconExport size={16} /> <span style={{ fontSize: '0.7rem' }}>Экспорт JSON</span>
         </button>
+
+        <span className="header-divider" />
 
         <button 
           className="btn btn-ghost btn-sm"
           onClick={onReset}
           data-tooltip="Сбросить все данные"
+          aria-label="Сбросить все данные"
         >
-          🗑️
+          <IconDelete size={16} /> <span style={{ fontSize: '0.7rem' }}>Сброс</span>
         </button>
         <button
           className="btn btn-ghost btn-sm"
           onClick={onToggleTheme}
           data-tooltip={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+          style={{ fontSize: '0.9rem' }}
         >
-          {theme === 'dark' ? '☀️' : '🌙'}
+          {theme === 'dark' ? <IconThemeLight size={18} /> : <IconThemeDark size={18} />}
         </button>
       </div>
     </header>

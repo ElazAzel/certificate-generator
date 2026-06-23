@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import type { GenerateResponse } from '../utils/api';
+import { IconSuccess, IconWarning, IconDownload, IconSuccessPop } from './Icons';
 
 interface GenerationResultProps {
   result: GenerateResponse;
@@ -50,13 +51,15 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
     >
       <div className="modal-card" style={{ maxWidth: '520px' }} role="dialog" aria-modal="true" aria-label="Результат генерации">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: '2.5rem' }}>
-            {result.errorCount === 0 ? '🎉' : '⚠️'}
+          <span style={{ fontSize: '2.5rem', lineHeight: 1 }}>
+            {result.errorCount === 0 ? <IconSuccessPop size={40} /> : <IconWarning size={40} style={{ color: 'var(--warning)' }} />}
           </span>
           <div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Генерация завершена!</h3>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+              {result.errorCount === 0 ? 'Всё готово!' : 'Генерация завершена'}
+            </h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Результат сохранен на сервере в папку <code>{result.outputPath}</code>
+              {result.successCount} из {result.totalRows} сертификатов создано
             </p>
           </div>
         </div>
@@ -101,7 +104,7 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
             className="btn btn-primary"
             style={{ flex: 1, textDecoration: 'none' }}
           >
-            📥 Скачать {result.files.length > 1 ? 'ZIP-архив' : 'PDF-файл'}
+            <IconDownload size={18} /> Скачать {result.files.length > 1 ? 'ZIP-архив' : 'PDF-файл'}
           </a>
           <button
             ref={closeBtnRef}

@@ -9,6 +9,8 @@ import { ExportSettings } from './components/ExportSettings';
 import { ProgressBar } from './components/ProgressBar';
 import { GenerationResult } from './components/GenerationResult';
 import { GenerationHistory } from './components/GenerationHistory';
+import { StepProgressBar } from './components/StepProgressBar';
+import { IconFiles, IconField, IconHistory, IconGenerate, IconTip } from './components/Icons';
 
 import { useExcelData } from './hooks/useExcelData';
 import { useTemplate } from './hooks/useTemplate';
@@ -18,11 +20,15 @@ import type { FontInfo, ExportConfig, ProjectConfig, FieldConfig, CatalogFontInf
 import type { GenerateResponse } from './utils/api';
 import { getFonts, uploadFont, generateCertificates, generateTestPdf, getTemplates, getFontCatalog, downloadGoogleFont } from './utils/api';
 
-
 import './styles/global.css';
 
+const STEPS = [
+  { key: 'data', label: 'Загрузка данных' },
+  { key: 'layout', label: 'Разметка полей' },
+  { key: 'export', label: 'Экспорт' },
+];
+
 export default function App() {
-  // 1. Hook states
   const {
     excelData,
     excelName,
@@ -61,7 +67,6 @@ export default function App() {
     redo,
   } = useFields();
 
-  // 2. Local states
   const [leftTab, setLeftTab] = useState<'files' | 'fields' | 'history'>('files');
   const [fonts, setFonts] = useState<FontInfo[]>([]);
   const [fontCatalog, setFontCatalog] = useState<CatalogFontInfo[]>([]);
@@ -75,24 +80,19 @@ export default function App() {
     combinedFileName: 'certificates_all.pdf',
   });
 
-  // Validation errors
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
-  // Generation progress
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generationProgress, setGenerationProgress] = useState<number>(0);
   const [currentProcessingRow, setCurrentProcessingRow] = useState<string>('');
   const [generationResult, setGenerationResult] = useState<GenerateResponse | null>(null);
-
-  // Toast notification
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), type === 'error' ? 5000 : 3000);
   };
 
-  // 3. Load custom fonts list, catalog, and existing templates on mount
   const loadFontsList = async () => {
     try {
       const list = await getFonts();
@@ -128,7 +128,6 @@ export default function App() {
     loadDefaultTemplate();
   }, []);
 
-  // Sync theme attribute on body
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
@@ -136,7 +135,6 @@ export default function App() {
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
-  // Undo/Redo keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -174,7 +172,6 @@ export default function App() {
     }
   };
 
-  // 4. Load config JSON
   const handleLoadConfig = (config: ProjectConfig) => {
     if (config.fields) {
       setFields(config.fields);
@@ -184,9 +181,9 @@ export default function App() {
       setExportConfig(config.export);
     }
     showToast('Конфигурация полей загружена', 'success');
+    setShowOnboarding(false);
   };
 
-  // Reset all data
   const handleReset = () => {
     if (!excelData && !template && fields.length === 0) return;
     if (!window.confirm('Сбросить все данные? Это действие нельзя отменить.')) return;
@@ -202,10 +199,10 @@ export default function App() {
       combinedFileName: 'certificates_all.pdf',
     });
     setLeftTab('files');
+    setShowOnboarding(true);
     showToast('Все данные сброшены', 'success');
   };
 
-  // Save config JSON to file
   const handleSaveConfig = () => {
     if (!template) return;
     const config: ProjectConfig = {
@@ -228,7 +225,6 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // 5. Validation Check
   useEffect(() => {
     const errors: string[] = [];
 
@@ -242,7 +238,6 @@ export default function App() {
       errors.push('Добавьте хотя бы одно текстовое поле.');
     }
 
-    // Validate fields individual fields
     fields.forEach((f) => {
       if (!f.excelColumn) {
         errors.push(`Для поля "${f.label}" не выбрана колонка Excel.`);
@@ -254,7 +249,6 @@ export default function App() {
         errors.push(`Для поля "${f.label}" размер шрифта должен быть больше 0.`);
       }
 
-      // Border bounds check
       if (template) {
         if (f.x < 0 || f.x > template.width || f.y < 0 || f.y > template.height) {
           errors.push(`Поле "${f.label}" частично или полностью выходит за границы макета.`);
@@ -269,7 +263,6 @@ export default function App() {
     setValidationErrors(errors);
   }, [excelData, template, fields, exportConfig]);
 
-  // 6. Test PDF generation for active row
   const handleGenerateTestPdf = async () => {
     if (!excelData || !template) return;
     if (currentRowIndex < 0 || currentRowIndex >= excelData.rows.length) return;
@@ -284,7 +277,6 @@ export default function App() {
     }
   };
 
-  // 7. Full batch generation
   const handleGenerateAll = async () => {
     if (!excelData || !template) return;
     setIsGenerating(true);
@@ -322,6 +314,75 @@ export default function App() {
   const hasTemplate = !!template;
   const isReadyToGenerate = validationErrors.length === 0;
 
+  const completedSteps = new Set<string>();
+  if (hasExcel && hasTemplate) completedSteps.add('data');
+  if (fields.length > 0) completedSteps.add('layout');
+  if (isReadyToGenerate && generationResult) completedSteps.add('export');
+
+  let currentStep = 0;
+  if (!hasExcel || !hasTemplate) currentStep = 0;
+  else if (fields.length === 0) currentStep = 1;
+  else currentStep = 2;
+
+  const allResourcesReady = hasExcel && hasTemplate;
+
+  // Onboarding screen
+  if (showOnboarding && !excelData && !template && fields.length === 0) {
+    return (
+      <div className="app-container">
+        <Header
+          onLoadConfig={handleLoadConfig}
+          onSaveConfig={handleSaveConfig}
+          onFontUpload={handleFontUpload}
+          onReset={handleReset}
+          uploadedFonts={fonts}
+          isConfigLoaded={fields.length > 0 && !!template}
+          showToast={showToast}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <div className="onboarding-overlay">
+            <span className="onboarding-icon"><IconGenerate size={64} style={{ color: 'var(--primary)' }} /></span>
+            <h2 className="onboarding-title">Генератор сертификатов</h2>
+            <p className="onboarding-subtitle">
+              Создавайте именные PDF-сертификаты за 3 простых шага.<br />
+              Загрузите Excel-таблицу с участниками и шаблон сертификата — остальное приложение сделает само.
+            </p>
+            <div className="onboarding-steps">
+              <div className="onboarding-step-card">
+                <div className="onboarding-step-number">1</div>
+                <h4>Загрузите данные</h4>
+                <p>Excel-файл с именами участников и шаблон сертификата (PNG, JPG или PDF)</p>
+              </div>
+              <div className="onboarding-step-card">
+                <div className="onboarding-step-number">2</div>
+                <h4>Настройте поля</h4>
+                <p>Разместите текстовые поля на макете: перетаскивайте, меняйте шрифты, цвета и размеры</p>
+              </div>
+              <div className="onboarding-step-card">
+                <div className="onboarding-step-number">3</div>
+                <h4>Создайте PDF</h4>
+                <p>Нажмите кнопку генерации и получите готовые сертификаты одним архивом</p>
+              </div>
+            </div>
+            <button
+              className="onboarding-cta"
+              onClick={() => setShowOnboarding(false)}
+            >
+              Начать работу →
+            </button>
+          </div>
+        </div>
+        {toast && (
+          <div className={`toast ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>
+            {toast.message}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       <Header
@@ -336,27 +397,55 @@ export default function App() {
         onToggleTheme={toggleTheme}
       />
 
+      <StepProgressBar
+        steps={STEPS}
+        currentStep={currentStep}
+        completedSteps={completedSteps}
+      />
+
+      {/* Quick tip when files not loaded */}
+      {!allResourcesReady && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '0.5rem 1.5rem',
+          background: 'rgba(99, 102, 241, 0.04)',
+          borderBottom: '1px solid var(--border)',
+        }}>
+          <div className="tip-card" style={{ maxWidth: '700px', width: '100%' }}>
+            <span className="tip-card-icon"><IconTip size={18} /></span>
+            <div>
+              {!hasExcel && !hasTemplate
+                ? 'Начните с загрузки Excel-файла с участниками и шаблона сертификата в левой панели.'
+                : !hasExcel
+                  ? 'Загрузите Excel-файл с данными участников, чтобы продолжить.'
+                  : 'Загрузите шаблон сертификата, чтобы перейти к разметке полей.'}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="app-workspace">
-        {/* Left Control Panel */}
         <aside className="panel panel-left">
           <div className="tab-group">
             <button 
               className={`tab-btn ${leftTab === 'files' ? 'active' : ''}`}
               onClick={() => setLeftTab('files')}
             >
-              📁 Файлы данных
+              <IconFiles size={14} /> Загрузка
             </button>
             <button 
               className={`tab-btn ${leftTab === 'fields' ? 'active' : ''}`}
               onClick={() => setLeftTab('fields')}
+              disabled={!allResourcesReady}
             >
-              ✏️ Поля разметки ({fields.length})
+              <IconField size={14} /> Поля ({fields.length})
             </button>
             <button 
               className={`tab-btn ${leftTab === 'history' ? 'active' : ''}`}
               onClick={() => setLeftTab('history')}
             >
-              📊 История
+              <IconHistory size={14} /> История
             </button>
           </div>
           
@@ -388,6 +477,13 @@ export default function App() {
                     onRowChange={(idx) => setCurrentRowIndex(idx)}
                   />
                 )}
+
+                {allResourcesReady && fields.length === 0 && (
+                  <div className="quick-start-card">
+                    <h4>Следующий шаг: добавьте поля</h4>
+                    <p>Перейдите на вкладку «Поля» и нажмите «+ Добавить поле», чтобы разместить текст на сертификате.</p>
+                  </div>
+                )}
               </>
             ) : leftTab === 'fields' ? (
               <FieldList
@@ -415,7 +511,6 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Center Editor */}
         <main style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <TemplateEditor
             template={template}
@@ -426,15 +521,16 @@ export default function App() {
             currentRowData={excelData?.rows?.[currentRowIndex]}
             scale={scale}
             onScaleChange={setScale}
+            excelLoaded={hasExcel}
+            fieldsCount={fields.length}
           />
         </main>
 
-        {/* Right Settings Panel */}
         <aside className="panel panel-right">
           <div className="panel-header">
-            <span>Параметры поля</span>
+            Настройки поля
           </div>
-          <div className="panel-body" style={{ overflowY: 'auto' }}>
+          <div className="panel-body">
             <FieldSettingsPanel
               field={activeField}
               onUpdateField={(updates) => activeFieldId && updateField(activeFieldId, updates)}
@@ -454,11 +550,19 @@ export default function App() {
                 </ul>
               </div>
             )}
+
+            {!activeField && allResourcesReady && (
+              <div className="tip-card" style={{ marginTop: '0.5rem' }}>
+                <span className="tip-card-icon"><IconTip size={18} /></span>
+                <div>
+                  Выберите поле на макете слева или в списке полей, чтобы настроить его параметры.
+                </div>
+              </div>
+            )}
           </div>
         </aside>
       </div>
 
-      {/* Footer export controls */}
       <footer className="app-footer">
         {isGenerating ? (
           <ProgressBar

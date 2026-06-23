@@ -1,5 +1,6 @@
 import React from 'react';
 import type { FieldConfig } from '../types/index';
+import { IconDuplicate, IconDelete, IconAddField, IconField } from './Icons';
 
 interface FieldListProps {
   fields: FieldConfig[];
@@ -31,13 +32,14 @@ export const FieldList: React.FC<FieldListProps> = ({
           style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
           onClick={onAddField}
         >
-          + Добавить поле
+          <IconAddField size={14} /> Добавить поле
         </button>
       </div>
 
       {fields.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          Нажмите кнопку выше, чтобы добавить текстовое поле
+        <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <IconField size={40} style={{ opacity: 0.5 }} />
+          <div>Пока нет ни одного поля. Нажмите «+ Добавить поле», чтобы разместить текст на сертификате.</div>
         </div>
       ) : (
         <div className="fields-list" style={{ overflowY: 'auto', flex: 1 }}>
@@ -62,7 +64,7 @@ export const FieldList: React.FC<FieldListProps> = ({
                   title="Дублировать"
                   onClick={() => onDuplicateField(field.id)}
                 >
-                  📋
+                  <IconDuplicate size={14} />
                 </button>
                 <button 
                   className="btn btn-danger"
@@ -70,7 +72,7 @@ export const FieldList: React.FC<FieldListProps> = ({
                   title="Удалить"
                   onClick={() => { if (window.confirm(`Удалить поле "${field.label}"?`)) onDeleteField(field.id); }}
                 >
-                  🗑️
+                  <IconDelete size={14} />
                 </button>
               </div>
             </div>

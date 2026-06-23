@@ -42,7 +42,16 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({ onDownload
   };
 
   if (loading && items.length === 0) {
-    return <div className="settings-empty">Загрузка...</div>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {[1,2,3].map(i => (
+          <div key={i} style={{ padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-md)', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="skeleton skeleton-text" style={{ width: '40%' }} />
+            <div className="skeleton skeleton-text-sm" />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   if (error) {
