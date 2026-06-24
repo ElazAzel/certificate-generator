@@ -340,6 +340,8 @@ export default function App() {
           showToast={showToast}
           theme={theme}
           onToggleTheme={toggleTheme}
+          canUndo={canUndo} canRedo={canRedo}
+          onUndo={undo} onRedo={redo}
         />
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <div className="onboarding-overlay">
@@ -395,6 +397,8 @@ export default function App() {
         showToast={showToast}
         theme={theme}
         onToggleTheme={toggleTheme}
+        canUndo={canUndo} canRedo={canRedo}
+        onUndo={undo} onRedo={redo}
       />
 
       <StepProgressBar
@@ -572,15 +576,18 @@ export default function App() {
             current={Math.round(((excelData?.rows.length || 0) * generationProgress) / 100)}
           />
         ) : (
-          <ExportSettings
-            config={exportConfig}
-            onUpdateConfig={(updates) => setExportConfig({ ...exportConfig, ...updates })}
-            excelColumns={excelData?.columns || []}
-            onGenerate={handleGenerateAll}
-            onGenerateTest={handleGenerateTestPdf}
-            isValid={isReadyToGenerate}
-            isGenerating={isGenerating}
-          />
+          <>
+            <ExportSettings
+              config={exportConfig}
+              onUpdateConfig={(updates) => setExportConfig({ ...exportConfig, ...updates })}
+              excelColumns={excelData?.columns || []}
+              onGenerate={handleGenerateAll}
+              onGenerateTest={handleGenerateTestPdf}
+              isValid={isReadyToGenerate}
+              isGenerating={isGenerating}
+            />
+            <div className="auth-notice"><span className="badge badge-primary">API Auth</span> Vercel: set <code>ADMIN_PASSWORD</code> env</div>
+          </>
         )}
       </footer>
 

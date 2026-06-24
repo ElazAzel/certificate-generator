@@ -78,6 +78,12 @@ export const IconSuccess: React.FC<IconProps> = (p) => (
 export const IconDownload: React.FC<IconProps> = (p) => (
   <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></Icon>
 );
+export const IconUndo: React.FC<IconProps> = (p) => (
+  <Icon {...p}><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></Icon>
+);
+export const IconRedo: React.FC<IconProps> = (p) => (
+  <Icon {...p}><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></Icon>
+);
 export const IconSuccessPop: React.FC<IconProps> = (p) => (
   <svg width={p.size || 40} height={p.size || 40} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`success-pop ${p.className || ''}`} style={p.style}>
     <circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" />

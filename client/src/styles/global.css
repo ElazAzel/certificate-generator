@@ -725,6 +725,7 @@ select.input-control {
   justify-content: space-between;
   align-items: center;
   gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 /* ===== PROGRESS ===== */
@@ -1413,6 +1414,28 @@ select.input-control {
   margin-top: 1px;
 }
 
+/* ===== MICRO-ANIMATIONS ===== */
+@keyframes fieldAppear { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes fieldDisappear { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes tabFadeIn { from { opacity: 0; transform: translateX(4px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 200px; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+.field-item { animation: fieldAppear 0.2s ease both; }
+.field-item.removing { animation: fieldDisappear 0.2s ease both; pointer-events: none; }
+
+.panel-body { position: relative; }
+.panel-body > * { animation: tabFadeIn 0.15s ease both; }
+
+.section-collapsible { overflow: hidden; }
+.section-collapsible-body { animation: slideDown 0.2s ease both; }
+
+.visual-field { transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s, transform 0.1s; }
+.visual-field:active { transform: scale(0.99); }
+
+.tab-btn { transition: color 0.15s, border-color 0.15s, background 0.15s; }
+.tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 20%; right: 20%; height: 2px; background: var(--primary); border-radius: 1px; animation: pulse 2s ease-in-out infinite; }
+
 /* ===== BADGE ===== */
 .badge {
   display: inline-flex;
@@ -1471,6 +1494,9 @@ select.input-control {
   transform: scale(0.97);
 }
 
+.auth-notice { display: flex; align-items: center; gap: 0.5rem; font-size: 0.65rem; color: var(--text-tertiary); white-space: nowrap; }
+.auth-notice code { background: rgba(45, 74, 122, 0.08); padding: 1px 4px; border-radius: 3px; font-size: 0.65rem; }
+
 .footer-generate-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -1509,6 +1535,8 @@ select.input-control {
   .field-item { padding: 0.4rem 0.5rem; }
   .onboarding-steps { flex-direction: column; align-items: center; }
   .onboarding-step-card { width: 100%; max-width: 280px; }
-  .step-progress-bar { display: none; }
+  .step-progress-bar { padding: 0.4rem 0.75rem; gap: 0; }
   .step-label { display: none; }
+  .step-badge { width: 22px; height: 22px; font-size: 0.6rem; }
+  .step-connector { min-width: 8px; margin: 0 0.25rem; }
 }

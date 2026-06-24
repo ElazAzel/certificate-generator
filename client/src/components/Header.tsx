@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import type { ProjectConfig } from '../types/index';
-import { IconFont, IconImport, IconExport, IconDelete, IconThemeLight, IconThemeDark, IconSpinner } from './Icons';
+import { IconFont, IconImport, IconExport, IconDelete, IconThemeLight, IconThemeDark, IconSpinner, IconUndo, IconRedo } from './Icons';
 
 interface HeaderProps {
   onLoadConfig: (config: ProjectConfig) => void;
@@ -12,6 +12,10 @@ interface HeaderProps {
   showToast: (msg: string, type: 'success' | 'error') => void;
   theme: string;
   onToggleTheme: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,6 +28,10 @@ export const Header: React.FC<HeaderProps> = ({
   showToast,
   theme,
   onToggleTheme,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
@@ -119,6 +127,25 @@ export const Header: React.FC<HeaderProps> = ({
 
         <span className="header-divider" />
 
+        <button 
+          className="btn btn-ghost btn-sm"
+          onClick={onUndo}
+          disabled={!canUndo}
+          data-tooltip="Отменить (Ctrl+Z)"
+          aria-label="Отменить"
+        >
+          <IconUndo size={16} />
+        </button>
+        <button 
+          className="btn btn-ghost btn-sm"
+          onClick={onRedo}
+          disabled={!canRedo}
+          data-tooltip="Повторить (Ctrl+Shift+Z)"
+          aria-label="Повторить"
+        >
+          <IconRedo size={16} />
+        </button>
+        <span className="header-divider" />
         <button 
           className="btn btn-ghost btn-sm"
           onClick={onReset}
