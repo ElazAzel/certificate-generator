@@ -10,7 +10,7 @@ import { ProgressBar } from './components/ProgressBar';
 import { GenerationResult } from './components/GenerationResult';
 import { GenerationHistory } from './components/GenerationHistory';
 import { StepProgressBar } from './components/StepProgressBar';
-import { IconFiles, IconField, IconHistory, IconGenerate, IconTip } from './components/Icons';
+import { IconFiles, IconField, IconHistory, IconGenerate, IconTip, IconClose, IconChevronLeft, IconChevronRight } from './components/Icons';
 
 import { useExcelData } from './hooks/useExcelData';
 import { useTemplate } from './hooks/useTemplate';
@@ -92,6 +92,9 @@ export default function App() {
   const [generationResult, setGenerationResult] = useState<GenerateResponse | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
+  const [mobileSheet, setMobileSheet] = useState<'files' | 'fields' | 'export' | 'history' | null>(null);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -166,6 +169,10 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileSheet(null);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -382,6 +389,8 @@ export default function App() {
   const handleSelectField = (id: string) => {
     setActiveFieldId(id);
     setLeftTab('fields');
+    setMobileSheet('fields');
+    if (rightCollapsed) setRightCollapsed(false);
   };
 
   const hasExcel = !!excelData;
@@ -399,6 +408,142 @@ export default function App() {
   else currentStep = 2;
 
   const allResourcesReady = hasExcel && hasTemplate;
+
+  const filesTabContent = (
+    <>
+      <FileUpload
+        onExcelUpload={handleExcelUpload}
+        onTemplateUpload={handleTemplateUpload}
+        excelName={excelName}
+        templateName={templateName}
+        excelLoading={excelLoading}
+        templateLoading={templateLoading}
+        excelError={excelError}
+        templateError={templateError}
+        sampleTemplates={sampleTemplates}
+        onLoadSampleTemplate={handleLoadSampleTemplate}
+        sampleLoading={sampleLoading}
+      />
+
+      {(excelError || templateError) && (
+        <div className="validation-alert">
+          {excelError && <div>{excelError}</div>}
+          {templateError && <div>{templateError}</div>}
+        </div>
+      )}
+
+      {excelData && (
+        <ExcelPreview
+          data={excelData}
+          currentRowIndex={currentRowIndex}
+          onRowChange={(idx) => setCurrentRowIndex(idx)}
+        />
+      )}
+
+      {allResourcesReady && fields.length === 0 && (
+        <div className="quick-start-card">
+          <h4>Следующий шаг: добавьте поля</h4>
+          <p>Перейдите на вкладку «Поля» и нажмите «+ Добавить поле», чтобы разместить текст на сертификате.</p>
+        </div>
+      )}
+    </>
+  );
+
+  const fieldsTabContent = (
+    <FieldList
+      fields={fields}
+      activeFieldId={activeFieldId}
+      onSelectField={handleSelectField}
+      onAddField={() => addField(
+        excelData?.columns.find(c => /name|fio|full.?name|participant/i.test(c)) || excelData?.columns[0] || 'name',
+        template?.width, template?.height
+      )}
+      onDeleteField={deleteField}
+      onDuplicateField={duplicateField}
+      excelColumns={excelData?.columns || []}
+    />
+  );
+
+  const historyTabContent = (
+    <GenerationHistory
+      onDownload={(exportId, type) => {
+        const url = type === 'zip'
+          ? `/api/download/zip/${exportId}`
+          : `/api/download/pdf/${exportId}`;
+        window.open(url, '_blank');
+      }}
+    />
+  );
+
+  const settingsContent = (
+    <>
+      <FieldSettingsPanel
+        field={activeField}
+        onUpdateField={(updates) => activeFieldId && updateField(activeFieldId, updates)}
+        excelColumns={excelData?.columns || []}
+        fonts={fonts}
+        fontCatalog={fontCatalog}
+        onDownloadGoogleFont={handleDownloadGoogleFont}
+      />
+
+      {validationErrors.length > 0 && (
+        <div className="validation-alert" style={{ marginTop: '1rem' }}>
+          <strong>Ошибки настройки:</strong>
+          <ul>
+            {validationErrors.map((err, idx) => (
+              <li key={idx}>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!activeField && allResourcesReady && (
+        <div className="tip-card" style={{ marginTop: '0.5rem' }}>
+          <span className="tip-card-icon"><IconTip size={18} /></span>
+          <div>
+            Выберите поле на макете слева или в списке полей, чтобы настроить его параметры.
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const exportContent = (
+    <>
+      {isGenerating ? (
+        <>
+          <ProgressBar
+            progress={generationProgress}
+            currentRowName={currentProcessingRow}
+            total={excelData?.rows.length || 0}
+            current={Math.round(((excelData?.rows.length || 0) * generationProgress) / 100)}
+          />
+          <div className="mobile-generating-note">
+            Создание сертификатов... Индикатор выполнения внизу экрана.
+          </div>
+        </>
+      ) : (
+        <>
+          <ExportSettings
+            config={exportConfig}
+            onUpdateConfig={(updates) => setExportConfig({ ...exportConfig, ...updates })}
+            excelColumns={excelData?.columns || []}
+            onGenerate={handleGenerateAll}
+            onGenerateTest={handleGenerateTestPdf}
+            isValid={isReadyToGenerate}
+            isGenerating={isGenerating}
+          />
+          <div className="auth-notice"><span className="badge badge-primary">API Auth</span> Vercel: set <code>ADMIN_PASSWORD</code> env</div>
+        </>
+      )}
+    </>
+  );
+
+  const mobileSheetTitle =
+    mobileSheet === 'files' ? 'Загрузка данных'
+    : mobileSheet === 'fields' ? 'Поля и настройки'
+    : mobileSheet === 'export' ? 'Экспорт'
+    : 'История';
 
   // Onboarding screen
   if (showOnboarding && !excelData && !template && fields.length === 0) {
@@ -483,7 +628,7 @@ export default function App() {
 
       {/* Quick tip when files not loaded */}
       {!allResourcesReady && (
-        <div style={{
+        <div className="quick-tip-bar" style={{
           display: 'flex',
           justifyContent: 'center',
           padding: '0.5rem 1.5rem',
@@ -503,8 +648,8 @@ export default function App() {
         </div>
       )}
 
-      <div className="app-workspace">
-        <aside className="panel panel-left">
+      <div className={`app-workspace${leftCollapsed ? ' left-hidden' : ''}${rightCollapsed ? ' right-hidden' : ''}`}>
+        <aside className={`panel panel-left${leftCollapsed ? ' collapsed' : ''}`}>
           <div className="tab-group">
             <button 
               className={`tab-btn ${leftTab === 'files' ? 'active' : ''}`}
@@ -525,70 +670,18 @@ export default function App() {
             >
               <IconHistory size={14} /> История
             </button>
+            <button
+              className="panel-collapse"
+              onClick={() => setLeftCollapsed(c => !c)}
+              title={leftCollapsed ? 'Показать панель' : 'Свернуть панель'}
+              aria-label={leftCollapsed ? 'Показать панель' : 'Свернуть панель'}
+            >
+              <IconChevronLeft size={16} />
+            </button>
           </div>
           
           <div className="panel-body">
-            {leftTab === 'files' ? (
-              <>
-                <FileUpload
-                  onExcelUpload={handleExcelUpload}
-                  onTemplateUpload={handleTemplateUpload}
-                  excelName={excelName}
-                  templateName={templateName}
-                  excelLoading={excelLoading}
-                  templateLoading={templateLoading}
-                  excelError={excelError}
-                  templateError={templateError}
-                  sampleTemplates={sampleTemplates}
-                  onLoadSampleTemplate={handleLoadSampleTemplate}
-                  sampleLoading={sampleLoading}
-                />
-
-                {(excelError || templateError) && (
-                  <div className="validation-alert">
-                    {excelError && <div>{excelError}</div>}
-                    {templateError && <div>{templateError}</div>}
-                  </div>
-                )}
-
-                {excelData && (
-                  <ExcelPreview
-                    data={excelData}
-                    currentRowIndex={currentRowIndex}
-                    onRowChange={(idx) => setCurrentRowIndex(idx)}
-                  />
-                )}
-
-                {allResourcesReady && fields.length === 0 && (
-                  <div className="quick-start-card">
-                    <h4>Следующий шаг: добавьте поля</h4>
-                    <p>Перейдите на вкладку «Поля» и нажмите «+ Добавить поле», чтобы разместить текст на сертификате.</p>
-                  </div>
-                )}
-              </>
-            ) : leftTab === 'fields' ? (
-              <FieldList
-                fields={fields}
-                activeFieldId={activeFieldId}
-                onSelectField={handleSelectField}
-                onAddField={() => addField(
-                  excelData?.columns.find(c => /name|fio|full.?name|participant/i.test(c)) || excelData?.columns[0] || 'name',
-                  template?.width, template?.height
-                )}
-                onDeleteField={deleteField}
-                onDuplicateField={duplicateField}
-                excelColumns={excelData?.columns || []}
-              />
-            ) : (
-              <GenerationHistory
-                onDownload={(exportId, type) => {
-                  const url = type === 'zip'
-                    ? `/api/download/zip/${exportId}`
-                    : `/api/download/pdf/${exportId}`;
-                  window.open(url, '_blank');
-                }}
-              />
-            )}
+            {leftTab === 'files' ? filesTabContent : leftTab === 'fields' ? fieldsTabContent : historyTabContent}
           </div>
         </aside>
 
@@ -607,66 +700,97 @@ export default function App() {
           />
         </main>
 
-        <aside className="panel panel-right">
+        <aside className={`panel panel-right${rightCollapsed ? ' collapsed' : ''}`}>
           <div className="panel-header">
-            Настройки поля
+            <span>Настройки поля</span>
+            <button
+              className="panel-collapse"
+              onClick={() => setRightCollapsed(c => !c)}
+              title={rightCollapsed ? 'Показать панель' : 'Свернуть панель'}
+              aria-label={rightCollapsed ? 'Показать панель' : 'Свернуть панель'}
+            >
+              <IconChevronRight size={16} />
+            </button>
           </div>
           <div className="panel-body">
-            <FieldSettingsPanel
-              field={activeField}
-              onUpdateField={(updates) => activeFieldId && updateField(activeFieldId, updates)}
-              excelColumns={excelData?.columns || []}
-              fonts={fonts}
-              fontCatalog={fontCatalog}
-              onDownloadGoogleFont={handleDownloadGoogleFont}
-            />
-
-            {validationErrors.length > 0 && (
-              <div className="validation-alert" style={{ marginTop: '1rem' }}>
-                <strong>Ошибки настройки:</strong>
-                <ul>
-                  {validationErrors.map((err, idx) => (
-                    <li key={idx}>{err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {!activeField && allResourcesReady && (
-              <div className="tip-card" style={{ marginTop: '0.5rem' }}>
-                <span className="tip-card-icon"><IconTip size={18} /></span>
-                <div>
-                  Выберите поле на макете слева или в списке полей, чтобы настроить его параметры.
-                </div>
-              </div>
-            )}
+            {settingsContent}
           </div>
         </aside>
       </div>
 
       <footer className="app-footer">
-        {isGenerating ? (
+        {exportContent}
+      </footer>
+
+      <nav className="mobile-nav">
+        <button
+          className={`mobile-nav-btn${mobileSheet === 'files' ? ' active' : ''}`}
+          onClick={() => setMobileSheet(s => s === 'files' ? null : 'files')}
+        >
+          <IconFiles size={20} />
+          <span>Загрузка</span>
+        </button>
+        <button
+          className={`mobile-nav-btn${mobileSheet === 'fields' ? ' active' : ''}`}
+          onClick={() => setMobileSheet(s => s === 'fields' ? null : 'fields')}
+          disabled={!allResourcesReady}
+        >
+          <IconField size={20} />
+          <span>Поля</span>
+        </button>
+        <button
+          className={`mobile-nav-btn${mobileSheet === 'export' ? ' active' : ''}`}
+          onClick={() => setMobileSheet(s => s === 'export' ? null : 'export')}
+        >
+          <IconGenerate size={20} />
+          <span>Экспорт</span>
+        </button>
+        <button
+          className={`mobile-nav-btn${mobileSheet === 'history' ? ' active' : ''}`}
+          onClick={() => setMobileSheet(s => s === 'history' ? null : 'history')}
+        >
+          <IconHistory size={20} />
+          <span>История</span>
+        </button>
+      </nav>
+
+      {isGenerating && (
+        <div className="mobile-progress">
           <ProgressBar
             progress={generationProgress}
             currentRowName={currentProcessingRow}
             total={excelData?.rows.length || 0}
             current={Math.round(((excelData?.rows.length || 0) * generationProgress) / 100)}
           />
-        ) : (
-          <>
-            <ExportSettings
-              config={exportConfig}
-              onUpdateConfig={(updates) => setExportConfig({ ...exportConfig, ...updates })}
-              excelColumns={excelData?.columns || []}
-              onGenerate={handleGenerateAll}
-              onGenerateTest={handleGenerateTestPdf}
-              isValid={isReadyToGenerate}
-              isGenerating={isGenerating}
-            />
-            <div className="auth-notice"><span className="badge badge-primary">API Auth</span> Vercel: set <code>ADMIN_PASSWORD</code> env</div>
-          </>
-        )}
-      </footer>
+        </div>
+      )}
+
+      {mobileSheet && (
+        <div className="mobile-sheet">
+          <div className="mobile-sheet-header">
+            <span className="mobile-sheet-title">{mobileSheetTitle}</span>
+            <button
+              className="mobile-sheet-close"
+              onClick={() => setMobileSheet(null)}
+              aria-label="Закрыть"
+            >
+              <IconClose size={18} />
+            </button>
+          </div>
+          <div className="mobile-sheet-body">
+            {mobileSheet === 'files' && filesTabContent}
+            {mobileSheet === 'fields' && (
+              <>
+                {fieldsTabContent}
+                <div className="mobile-sheet-section-title">Настройки выбранного поля</div>
+                {settingsContent}
+              </>
+            )}
+            {mobileSheet === 'export' && exportContent}
+            {mobileSheet === 'history' && historyTabContent}
+          </div>
+        </div>
+      )}
 
       {generationResult && (
         <GenerationResult
