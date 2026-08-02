@@ -538,8 +538,8 @@ body {
 
 .visual-field {
   position: absolute;
-  border: 2px dashed rgba(45, 74, 122, 0.5);
-  background: rgba(45, 74, 122, 0.06);
+  border: 1px dashed rgba(45, 74, 122, 0.28);
+  background: transparent;
   display: flex;
   cursor: move;
   touch-action: none;
@@ -549,15 +549,15 @@ body {
 }
 
 .visual-field:hover {
-  background: rgba(45, 74, 122, 0.1);
-  border-color: rgba(45, 74, 122, 0.7);
+  background: rgba(45, 74, 122, 0.05);
+  border-color: rgba(45, 74, 122, 0.55);
 }
 
 .visual-field.active {
   border: 2px solid var(--primary);
-  background: rgba(45, 74, 122, 0.12);
+  background: rgba(45, 74, 122, 0.07);
   z-index: 10;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), var(--primary-glow);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .visual-field-content {
@@ -573,21 +573,21 @@ body {
 /* Resize handles */
 .resize-handle {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   background: white;
-  border: 2px solid var(--primary);
+  border: 1.5px solid var(--primary);
   border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   transition: transform 0.15s;
 }
 
-.resize-handle:hover { transform: scale(1.25); }
+.resize-handle:hover { transform: scale(1.3); }
 
-.resize-handle-se { right: -5px; bottom: -5px; cursor: se-resize; }
-.resize-handle-sw { left: -5px; bottom: -5px; cursor: sw-resize; }
-.resize-handle-ne { right: -5px; top: -5px; cursor: ne-resize; }
-.resize-handle-nw { left: -5px; top: -5px; cursor: nw-resize; }
+.resize-handle-se { right: -4px; bottom: -4px; cursor: se-resize; }
+.resize-handle-sw { left: -4px; bottom: -4px; cursor: sw-resize; }
+.resize-handle-ne { right: -4px; top: -4px; cursor: ne-resize; }
+.resize-handle-nw { left: -4px; top: -4px; cursor: nw-resize; }
 
 /* ===== FORM CONTROLS ===== */
 .form-group {

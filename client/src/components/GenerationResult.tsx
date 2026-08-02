@@ -14,9 +14,15 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
   const backdropRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const downloadBtnRef = useRef<HTMLAnchorElement>(null);
-  const downloadUrl = result.files.length > 1
-    ? `/api/download/zip/${result.exportId}`
-    : `/api/download/pdf/${result.exportId}`;
+
+  const isZip = result.files.length > 1;
+  const inlineBase64 = isZip ? result.zipBase64 : result.pdfBase64;
+  const downloadUrl = inlineBase64
+    ? `data:${isZip ? 'application/zip' : 'application/pdf'};base64,${inlineBase64}`
+    : isZip
+      ? `/api/download/zip/${result.exportId}`
+      : `/api/download/pdf/${result.exportId}`;
+  const downloadFileName = isZip ? 'certificates.zip' : (result.files[0] || 'certificate.pdf');
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -101,10 +107,11 @@ export const GenerationResult: React.FC<GenerationResultProps> = ({
           <a
             ref={downloadBtnRef}
             href={downloadUrl}
+            download={downloadFileName}
             className="btn btn-primary"
             style={{ flex: 1, textDecoration: 'none' }}
           >
-            <IconDownload size={18} /> Скачать {result.files.length > 1 ? 'ZIP-архив' : 'PDF-файл'}
+            <IconDownload size={18} /> Скачать {isZip ? 'ZIP-архив' : 'PDF-файл'}
           </a>
           <button
             ref={closeBtnRef}

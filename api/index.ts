@@ -235,6 +235,50 @@ function loadFallbackFonts(): void {
 }
 loadFallbackFonts();
 
+// ---------- Seed sample templates (deterministic IDs work on every serverless instance) ----------
+function getSampleTemplatesDir(): string | null {
+  const candidates = [
+    path.join(process.cwd(), '..', 'sample-data', 'templates'),
+    path.join(process.cwd(), 'sample-data', 'templates'),
+    path.join(__dirname, '..', '..', 'sample-data', 'templates'),
+  ];
+  for (const dir of candidates) {
+    try {
+      if (fs.existsSync(dir)) return dir;
+    } catch { /* next */ }
+  }
+  return null;
+}
+
+async function seedSampleTemplates(): Promise<void> {
+  const dir = getSampleTemplatesDir();
+  if (!dir) return;
+  const store = getStore();
+  const files = fs.readdirSync(dir).filter(f => /\.(pdf|png|jpe?g)$/i.test(f));
+  for (const f of files) {
+    try {
+      const ext = path.extname(f).slice(1).toLowerCase();
+      const bytes = new Uint8Array(fs.readFileSync(path.join(dir, f)));
+      const id = `sample_${f}`;
+      if (store.templates.has(id)) continue;
+      let type: TemplateRecord['type'] = 'png';
+      let width = 1122;
+      let height = 794;
+      if (ext === 'pdf') {
+        type = 'pdf';
+        const doc = await PDFDocument.load(bytes);
+        const page = doc.getPage(0);
+        width = page.getWidth();
+        height = page.getHeight();
+      } else if (ext === 'jpg' || ext === 'jpeg') {
+        type = 'jpg';
+      }
+      store.templates.set(id, { id, originalFileName: f, type, width, height, fileBytes: bytes });
+    } catch { /* skip broken file */ }
+  }
+}
+seedSampleTemplates().catch(() => { /* samples are optional */ });
+
 /** Fallback font style → filename map (tried in order) */
 const FALLBACK_FONT_MAP: Record<string, [string, string][]> = {
   'regular':      [['DejaVuSans', 'LiberationSans-Regular'], ['DejaVuSerif', 'LiberationSerif-Regular']],
@@ -726,7 +770,7 @@ app.get('/api/upload/templates', (_req, res) => {
   const templates = Array.from(store.templates.values()).map(t => ({
     id: t.id, originalFileName: t.originalFileName,
     type: t.type, width: t.width, height: t.height,
-    previewUrl: '',
+    previewUrl: `/api/upload/template/${t.id}`,
   }));
   res.json(templates);
 });
@@ -744,11 +788,29 @@ app.get('/api/upload/template/:id', (req, res) => {
 // Generate Test PDF
 app.post('/api/generate/test', async (req, res) => {
   try {
-    const { row, templateId, fields } = req.body;
+    const { row, templateId, fields, templateData, templateType, templateWidth, templateHeight } = req.body;
     if (!row) return res.status(400).json({ error: 'Пустая строка' });
     if (!templateId) return res.status(400).json({ error: 'Не указан шаблон' });
     const store = getStore();
-    const template = store.templates.get(templateId);
+    let template = store.templates.get(templateId);
+    if (!template && templateData) {
+      try {
+        const bytes = new Uint8Array(Buffer.from(templateData, 'base64'));
+        let type: TemplateRecord['type'] = templateType === 'pdf' ? 'pdf' : templateType === 'jpg' || templateType === 'jpeg' ? 'jpg' : 'png';
+        let width = Number(templateWidth) || 1122;
+        let height = Number(templateHeight) || 794;
+        if (type === 'pdf') {
+          const doc = await PDFDocument.load(bytes);
+          const page = doc.getPage(0);
+          width = page.getWidth();
+          height = page.getHeight();
+        }
+        template = { id: templateId, originalFileName: 'template.' + (type === 'pdf' ? 'pdf' : type), type, width, height, fileBytes: bytes };
+        store.templates.set(templateId, template);
+      } catch (err: any) {
+        return res.status(400).json({ error: 'Не удалось прочитать шаблон: ' + err.message });
+      }
+    }
     if (!template) return res.status(400).json({ error: 'Шаблон не найден (перезагрузите шаблон)' });
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
@@ -765,7 +827,7 @@ app.post('/api/generate/test', async (req, res) => {
 // Generate All
 app.post('/api/generate', async (req, res) => {
   try {
-    const { excelData, templateId, fields, exportConfig } = req.body;
+    const { excelData, templateId, fields, exportConfig, templateData, templateType, templateWidth, templateHeight } = req.body;
     if (!excelData || !Array.isArray(excelData) || excelData.length === 0) {
       return res.status(400).json({ error: 'Данные Excel отсутствуют' });
     }
@@ -774,7 +836,26 @@ app.post('/api/generate', async (req, res) => {
       return res.status(400).json({ error: 'Нет текстовых полей' });
     }
     const store = getStore();
-    const template = store.templates.get(templateId);
+    let template = store.templates.get(templateId);
+    // Serverless instances don't share memory — re-register template from client bytes if needed
+    if (!template && templateData) {
+      try {
+        const bytes = new Uint8Array(Buffer.from(templateData, 'base64'));
+        let type: TemplateRecord['type'] = templateType === 'pdf' ? 'pdf' : templateType === 'jpg' || templateType === 'jpeg' ? 'jpg' : 'png';
+        let width = Number(templateWidth) || 1122;
+        let height = Number(templateHeight) || 794;
+        if (type === 'pdf') {
+          const doc = await PDFDocument.load(bytes);
+          const page = doc.getPage(0);
+          width = page.getWidth();
+          height = page.getHeight();
+        }
+        template = { id: templateId, originalFileName: 'template.' + (type === 'pdf' ? 'pdf' : type), type, width, height, fileBytes: bytes };
+        store.templates.set(templateId, template);
+      } catch (err: any) {
+        return res.status(400).json({ error: 'Не удалось прочитать шаблон: ' + err.message });
+      }
+    }
     if (!template) return res.status(400).json({ error: 'Шаблон не найден' });
 
     const isSeparate = exportConfig.mode === 'separate';
@@ -841,6 +922,15 @@ app.post('/api/generate', async (req, res) => {
     });
 
     // Return response with PDF data for download
+    const MAX_INLINE = 3.5 * 1024 * 1024; // inline base64 only for small outputs (<3.5MB)
+    let zipBase64: string | null = null;
+    let pdfBase64: string | null = null;
+    if (zipBytes && zipBytes.length <= MAX_INLINE) {
+      zipBase64 = Buffer.from(zipBytes).toString('base64');
+    } else if (generatedPdfs.length === 1 && generatedPdfs[0].bytes.length <= MAX_INLINE) {
+      pdfBase64 = Buffer.from(generatedPdfs[0].bytes).toString('base64');
+    }
+
     res.json({
       success: true,
       exportId,
@@ -851,6 +941,8 @@ app.post('/api/generate', async (req, res) => {
       errors,
       pdfs: generatedPdfs.map(p => ({ name: p.name, size: p.bytes.length })),
       zipSize: zipBytes ? zipBytes.length : null,
+      zipBase64,
+      pdfBase64,
       _downloadHint: `Use GET /api/download/pdf/${exportId} or /api/download/zip/${exportId}`,
     });
 

@@ -1,0 +1,1054 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
+const multer_1 = __importDefault(require("multer"));
+const pdf_lib_1 = require("pdf-lib");
+const fontkit_1 = __importDefault(require("@pdf-lib/fontkit"));
+const XLSX = __importStar(require("xlsx"));
+const archiver_1 = __importDefault(require("archiver"));
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const qrcode_1 = __importDefault(require("qrcode"));
+const store_1 = require("./store");
+const coordinates_1 = require("./coordinates");
+const textLayout_1 = require("./textLayout");
+const sanitize_1 = require("./sanitize");
+// ---------- Helpers ----------
+function simpleLog(level, msg) {
+    const ts = new Date().toISOString();
+    console[level === 'error' ? 'error' : 'log'](`[${ts}] [${level.toUpperCase()}] ${msg}`);
+}
+const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_PASSWORD || 'default-dev-secret-change-me';
+function generateToken() {
+    return jsonwebtoken_1.default.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+}
+// ---------- Express App ----------
+const app = (0, express_1.default)();
+app.use((0, cors_1.default)());
+app.use(express_1.default.json({ limit: '100mb' }));
+// Request logging
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        simpleLog('info', `${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+    });
+    next();
+});
+const upload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 },
+});
+// ---------- Font helpers ----------
+function readFontFamilyName(buf) {
+    try {
+        const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+        const sfVersion = view.getUint32(0, false);
+        const isTTF = sfVersion === 0x00010000 || sfVersion === 0x74727565;
+        const isOTF = sfVersion === 0x4F54544F;
+        if (!isTTF && !isOTF)
+            return null;
+        const numTables = view.getUint16(4, false);
+        let nameOffset = -1;
+        for (let i = 0; i < numTables; i++) {
+            const recOff = 12 + i * 16;
+            const tag = String.fromCharCode(buf[recOff], buf[recOff + 1], buf[recOff + 2], buf[recOff + 3]);
+            if (tag === 'name') {
+                nameOffset = view.getUint32(recOff + 8, false);
+                break;
+            }
+        }
+        if (nameOffset < 0)
+            return null;
+        const count = view.getUint16(nameOffset + 2, false);
+        const stringOffset = view.getUint16(nameOffset + 4, false);
+        for (let i = 0; i < count; i++) {
+            const recOff = nameOffset + 6 + i * 12;
+            const platformID = view.getUint16(recOff, false);
+            const encodingID = view.getUint16(recOff + 2, false);
+            const nameID = view.getUint16(recOff + 6, false);
+            const len = view.getUint16(recOff + 8, false);
+            const strOff = nameOffset + stringOffset + view.getUint16(recOff + 10, false);
+            if (nameID !== 1)
+                continue;
+            if (platformID === 3 && encodingID === 1) {
+                let result = '';
+                for (let j = 0; j < len; j += 2) {
+                    const code = view.getUint16(strOff + j, false);
+                    if (code === 0)
+                        break;
+                    result += String.fromCharCode(code);
+                }
+                if (result.trim())
+                    return result.trim();
+            }
+            else if (platformID === 1 && encodingID === 0) {
+                let result = '';
+                for (let j = 0; j < len; j++) {
+                    const code = buf[strOff + j];
+                    if (code === 0)
+                        break;
+                    result += String.fromCharCode(code);
+                }
+                if (result.trim())
+                    return result.trim();
+            }
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
+}
+function hexToRgb(hex) {
+    if (!hex)
+        return (0, pdf_lib_1.rgb)(0, 0, 0);
+    const c = hex.replace('#', '');
+    const r = parseInt(c.substring(0, 2), 16) / 255;
+    const g = parseInt(c.substring(2, 4), 16) / 255;
+    const b = parseInt(c.substring(4, 6), 16) / 255;
+    return (0, pdf_lib_1.rgb)(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b);
+}
+function findFontByName(name) {
+    const store = (0, store_1.getStore)();
+    for (const f of store.fonts.values()) {
+        if (f.fontName === name || f.fileName === name || f.id === name)
+            return f;
+    }
+    const lower = name.toLowerCase();
+    for (const f of store.fonts.values()) {
+        if (f.fontName.toLowerCase() === lower || f.fileName.toLowerCase() === lower)
+            return f;
+    }
+    return undefined;
+}
+function findFontVariant(baseBytes, style) {
+    const suffixMap = {
+        arial: { bold: ['arialbd'], italic: ['ariali'], 'bold-italic': ['arialbi'] },
+        times: { bold: ['timesbd'], italic: ['timesi'], 'bold-italic': ['timesbi'] },
+        courier: { bold: ['courbd'], italic: ['couri'], 'bold-italic': ['courbi'] },
+        calibri: { bold: ['calibrib'], italic: ['calibrii'], 'bold-italic': ['calibriz'] },
+    };
+    const store = (0, store_1.getStore)();
+    const baseName = (findFontByBytes(baseBytes)?.fileName || '').replace(/\.[^.]+$/, '').toLowerCase();
+    const family = baseName.replace(/[^a-z]/g, '');
+    if (suffixMap[family]?.[style]) {
+        for (const suffix of suffixMap[family][style]) {
+            for (const f of store.fonts.values()) {
+                if (f.fileName.toLowerCase().startsWith(suffix))
+                    return f.fileBytes;
+            }
+        }
+    }
+    const styleSuffixes = {
+        bold: ['bd', 'bold', 'b'],
+        italic: ['i', 'italic'],
+        'bold-italic': ['bi', 'bolditalic'],
+    };
+    for (const suffix of styleSuffixes[style] || []) {
+        for (const f of store.fonts.values()) {
+            const fn = f.fileName.toLowerCase().replace(/\.[^.]+$/, '');
+            if (fn === baseName + suffix || fn === baseName + '-' + suffix)
+                return f.fileBytes;
+        }
+    }
+    return null;
+}
+function findFontByBytes(bytes) {
+    const store = (0, store_1.getStore)();
+    for (const f of store.fonts.values()) {
+        if (f.fileBytes === bytes)
+            return f;
+    }
+    return undefined;
+}
+// ---------- Fallback built-in fonts (DejaVu + LiberationSans, free, Cyrillic-capable) ----------
+const FALLBACK_FONTS = {};
+/** All possible directories to scan for bundled .ttf fonts */
+function getFontScanDirs() {
+    const candidates = new Set();
+    // Vercel serverless typical paths
+    candidates.add(path.join(__dirname, 'fonts'));
+    candidates.add(path.join(process.cwd(), 'fonts'));
+    candidates.add(path.join(process.cwd(), 'api', 'fonts'));
+    // Vercel .vercel/output/... paths
+    try {
+        const vercelDir = path.join(process.cwd(), '.vercel');
+        if (fs.existsSync(vercelDir)) {
+            candidates.add(path.join(vercelDir, 'output', 'functions', 'api', 'fonts'));
+        }
+    }
+    catch { /* skip */ }
+    return Array.from(candidates);
+}
+function loadFallbackFonts() {
+    const dirs = getFontScanDirs();
+    const ttfFiles = [];
+    for (const dir of dirs) {
+        try {
+            if (fs.existsSync(dir)) {
+                for (const f of fs.readdirSync(dir)) {
+                    if (f.toLowerCase().endsWith('.ttf') && !ttfFiles.includes(f)) {
+                        ttfFiles.push(f);
+                    }
+                }
+            }
+        }
+        catch { /* skip */ }
+    }
+    // Load and register each font
+    const store = (0, store_1.getStore)();
+    for (const ttfFile of ttfFiles) {
+        const name = ttfFile.replace(/\.ttf$/i, '');
+        for (const dir of dirs) {
+            const fp = path.join(dir, ttfFile);
+            try {
+                if (fs.existsSync(fp)) {
+                    const bytes = new Uint8Array(fs.readFileSync(fp));
+                    FALLBACK_FONTS[name] = bytes;
+                    const id = 'builtin_' + name;
+                    if (!store.fonts.has(id)) {
+                        const fontName = fontNameFromFile(ttfFile);
+                        store.fonts.set(id, { id, fileName: ttfFile, fontName, fileBytes: bytes });
+                    }
+                    break;
+                }
+            }
+            catch { /* try next dir */ }
+        }
+    }
+}
+loadFallbackFonts();
+// ---------- Seed sample templates (deterministic IDs work on every serverless instance) ----------
+function getSampleTemplatesDir() {
+    const candidates = [
+        path.join(process.cwd(), '..', 'sample-data', 'templates'),
+        path.join(process.cwd(), 'sample-data', 'templates'),
+        path.join(__dirname, '..', '..', 'sample-data', 'templates'),
+    ];
+    for (const dir of candidates) {
+        try {
+            if (fs.existsSync(dir))
+                return dir;
+        }
+        catch { /* next */ }
+    }
+    return null;
+}
+async function seedSampleTemplates() {
+    const dir = getSampleTemplatesDir();
+    if (!dir)
+        return;
+    const store = (0, store_1.getStore)();
+    const files = fs.readdirSync(dir).filter(f => /\.(pdf|png|jpe?g)$/i.test(f));
+    for (const f of files) {
+        try {
+            const ext = path.extname(f).slice(1).toLowerCase();
+            const bytes = new Uint8Array(fs.readFileSync(path.join(dir, f)));
+            const id = `sample_${f}`;
+            if (store.templates.has(id))
+                continue;
+            let type = 'png';
+            let width = 1122;
+            let height = 794;
+            if (ext === 'pdf') {
+                type = 'pdf';
+                const doc = await pdf_lib_1.PDFDocument.load(bytes);
+                const page = doc.getPage(0);
+                width = page.getWidth();
+                height = page.getHeight();
+            }
+            else if (ext === 'jpg' || ext === 'jpeg') {
+                type = 'jpg';
+            }
+            store.templates.set(id, { id, originalFileName: f, type, width, height, fileBytes: bytes });
+        }
+        catch { /* skip broken file */ }
+    }
+}
+seedSampleTemplates().catch(() => { });
+/** Fallback font style → filename map (tried in order) */
+const FALLBACK_FONT_MAP = {
+    'regular': [['DejaVuSans', 'LiberationSans-Regular'], ['DejaVuSerif', 'LiberationSerif-Regular']],
+    'bold': [['DejaVuSans-Bold', 'LiberationSans-Bold'], ['DejaVuSerif-Bold', 'LiberationSerif-Bold']],
+    'italic': [['DejaVuSans-Oblique', 'LiberationSans-Italic'], ['DejaVuSerif-Italic', 'LiberationSerif-Italic']],
+    'bold-italic': [['DejaVuSans-BoldOblique', 'LiberationSans-BoldItalic'], ['DejaVuSerif-BoldItalic', 'LiberationSerif-BoldItalic']],
+};
+function getFallbackFont(style) {
+    const candidates = FALLBACK_FONT_MAP[style] || FALLBACK_FONT_MAP['regular'];
+    for (const [name] of candidates) {
+        if (FALLBACK_FONTS[name])
+            return FALLBACK_FONTS[name];
+    }
+    // ultimate fallback: any TTF we have
+    const values = Object.values(FALLBACK_FONTS);
+    return values.length > 0 ? values[0] : null;
+}
+/** Derive a display font name from a TTF filename (e.g. "DejaVuSans-Regular.ttf" -> "DejaVu Sans Regular") */
+function fontNameFromFile(ttfFile) {
+    return ttfFile.replace(/\.ttf$/i, '').replace(/[-_]/g, ' ');
+}
+// ---------- PDF Generation ----------
+async function generateSingleCertificate(template, fields, row, pdfDoc) {
+    pdfDoc.registerFontkit(fontkit_1.default);
+    let page;
+    if (template.type === 'pdf') {
+        const srcDoc = await pdf_lib_1.PDFDocument.load(template.fileBytes);
+        const [copiedPage] = await pdfDoc.copyPages(srcDoc, [0]);
+        page = pdfDoc.addPage(copiedPage);
+    }
+    else {
+        page = pdfDoc.addPage([template.width, template.height]);
+        const img = template.type === 'png'
+            ? await pdfDoc.embedPng(template.fileBytes)
+            : await pdfDoc.embedJpg(template.fileBytes);
+        page.drawImage(img, { x: 0, y: 0, width: template.width, height: template.height });
+    }
+    const pageHeight = page.getHeight();
+    for (const field of fields) {
+        if (!field.visible)
+            continue;
+        const isQr = field.contentType === 'qr';
+        // Fixed text: field without Excel column uses its label as constant value
+        const rawText = isQr
+            ? ''
+            : field.excelColumn
+                ? (row[field.excelColumn] !== undefined ? String(row[field.excelColumn]) : '')
+                : (field.label || '');
+        if (!isQr) {
+            const text = rawText.trim();
+            if (!text)
+                continue;
+            let fontToUse;
+            const customFont = findFontByName(field.fontFamily);
+            if (customFont) {
+                let fontBytes = customFont.fileBytes;
+                if (field.bold || field.italic) {
+                    const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : 'italic';
+                    const variant = findFontVariant(fontBytes, style);
+                    if (variant)
+                        fontBytes = variant;
+                }
+                try {
+                    fontToUse = await pdfDoc.embedFont(fontBytes);
+                }
+                catch {
+                    const fb = getFallbackFont('regular');
+                    fontToUse = await pdfDoc.embedFont(fb ?? pdf_lib_1.StandardFonts.Helvetica);
+                }
+            }
+            else {
+                const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : field.italic ? 'italic' : 'regular';
+                const fb = getFallbackFont(style);
+                if (fb) {
+                    fontToUse = await pdfDoc.embedFont(fb);
+                }
+                else {
+                    fontToUse = await pdfDoc.embedFont(pdf_lib_1.StandardFonts.Helvetica);
+                }
+            }
+            const color = hexToRgb(field.fontColor);
+            let fontSize = field.fontSize;
+            const mode = field.mode;
+            const letterSpacing = field.letterSpacing || 0;
+            if (mode === 'shrink-to-fit') {
+                fontSize = (0, textLayout_1.shrinkTextToFit)(text, fontToUse, field.fontSize, field.width, field.height, field.lineHeight || 1.2, false);
+                if (fontSize < 4)
+                    fontSize = 4;
+            }
+            let lines = [text];
+            if (mode === 'multiline') {
+                lines = (0, textLayout_1.wrapText)(text, fontToUse, fontSize, field.width);
+            }
+            else if (mode === 'clip') {
+                let currentText = text;
+                while (currentText.length > 0 && (0, textLayout_1.measureTextWidth)(currentText, fontToUse, fontSize) > field.width) {
+                    currentText = currentText.slice(0, -1);
+                }
+                lines = [currentText ? currentText + '...' : ''];
+            }
+            const pdfY = (0, coordinates_1.uiYToPdfY)(field.y, pageHeight, field.height);
+            const totalLines = lines.length;
+            const fontLineHeight = field.lineHeight || 1.2;
+            const lineSpacing = fontSize * fontLineHeight;
+            for (let i = 0; i < totalLines; i++) {
+                const lineText = lines[i];
+                const letterSpacingOffset = letterSpacing > 0 ? letterSpacing * Math.max(0, lineText.length - 1) : 0;
+                const textWidth = (0, textLayout_1.measureTextWidth)(lineText, fontToUse, fontSize) + letterSpacingOffset;
+                const textX = (0, coordinates_1.calculateTextX)(field.x, field.width, textWidth, field.align);
+                const baseLineY = (0, coordinates_1.calculateTextBaselineY)(pdfY, field.height, fontSize, field.verticalAlign, totalLines, fontLineHeight);
+                const currentLineY = baseLineY + (totalLines - 1 - i) * lineSpacing;
+                if (letterSpacing > 0)
+                    page.pushOperators((0, pdf_lib_1.setCharacterSpacing)(letterSpacing));
+                page.drawText(lineText, {
+                    x: textX, y: currentLineY, size: fontSize,
+                    font: fontToUse, color,
+                    rotate: field.rotation ? (0, pdf_lib_1.degrees)(field.rotation) : undefined,
+                });
+            }
+        }
+        else {
+            // QR code field
+            let qrText = (field.qrValueTemplate || '').trim();
+            if (qrText) {
+                // Replace {column} placeholders with row values
+                qrText = qrText.replace(/\{([^}]+)\}/g, (_, col) => {
+                    const v = row[col];
+                    return v !== undefined ? String(v) : `{${col}}`;
+                });
+            }
+            else if (field.excelColumn) {
+                qrText = row[field.excelColumn] !== undefined ? String(row[field.excelColumn]) : '';
+            }
+            if (!qrText)
+                continue;
+            try {
+                const qrPng = await qrcode_1.default.toBuffer(qrText, {
+                    type: 'png',
+                    width: 400,
+                    margin: 1,
+                    errorCorrectionLevel: 'M',
+                });
+                const qrImage = await pdfDoc.embedPng(qrPng);
+                const pdfY = (0, coordinates_1.uiYToPdfY)(field.y, pageHeight, field.height);
+                const size = Math.min(field.width, field.height);
+                const qrX = field.align === 'center'
+                    ? field.x + (field.width - size) / 2
+                    : field.align === 'right'
+                        ? field.x + field.width - size
+                        : field.x;
+                const qrY = field.verticalAlign === 'middle'
+                    ? pdfY + (field.height - size) / 2
+                    : field.verticalAlign === 'top'
+                        ? pdfY + field.height - size
+                        : pdfY;
+                page.drawImage(qrImage, {
+                    x: qrX, y: qrY, width: size, height: size,
+                    rotate: field.rotation ? (0, pdf_lib_1.degrees)(field.rotation) : undefined,
+                });
+            }
+            catch (e) {
+                simpleLog('warn', `QR generation failed for field "${field.label}": ${e.message}`);
+            }
+        }
+    }
+}
+// ---------- Routes ----------
+// Auth — POST /api/auth/login
+app.post('/api/auth/login', (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!process.env.ADMIN_PASSWORD) {
+            const token = generateToken();
+            return res.json({ token, expiresIn: '24h', mode: 'no-auth' });
+        }
+        if (!password) {
+            return res.status(400).json({ error: 'Пароль не указан' });
+        }
+        const isValid = bcryptjs_1.default.compareSync(password, process.env.ADMIN_PASSWORD);
+        if (!isValid) {
+            simpleLog('warn', 'Failed login attempt');
+            return res.status(401).json({ error: 'Неверный пароль' });
+        }
+        const token = generateToken();
+        simpleLog('info', 'Successful login');
+        res.json({ token, expiresIn: '24h' });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Ошибка входа' });
+    }
+});
+// Auth — GET /api/auth/status
+app.get('/api/auth/status', (_req, res) => {
+    res.json({
+        authConfigured: !!process.env.ADMIN_PASSWORD,
+        mode: process.env.ADMIN_PASSWORD ? 'password' : 'open',
+    });
+});
+// Sample templates gallery — GET /api/sample-data/templates
+app.get('/api/sample-data/templates', (_req, res) => {
+    const possibleDirs = [
+        path.join(process.cwd(), '..', 'sample-data', 'templates'),
+        path.join(process.cwd(), 'sample-data', 'templates'),
+    ];
+    for (const dir of possibleDirs) {
+        try {
+            if (!fs.existsSync(dir))
+                continue;
+            const files = fs.readdirSync(dir).filter(f => /\.(pdf|png|jpe?g)$/i.test(f));
+            const items = files.map(f => {
+                const stats = fs.statSync(path.join(dir, f));
+                const ext = path.extname(f).slice(1).toLowerCase();
+                return {
+                    fileName: f,
+                    name: f.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
+                    type: ext === 'pdf' ? 'pdf' : ext === 'png' ? 'png' : 'jpg',
+                    size: stats.size,
+                };
+            });
+            return res.json({ items });
+        }
+        catch { /* try next */ }
+    }
+    res.json({ items: [] });
+});
+// Sample data — GET /api/sample-data/* (supports nested subpaths, path-traversal safe)
+app.get('/api/sample-data/*', (req, res) => {
+    const possibleDirs = [
+        path.join(process.cwd(), '..', 'sample-data'),
+        path.join(process.cwd(), 'sample-data'),
+    ];
+    const relPath = String(req.params[0]).replace(/\\/g, '/').replace(/^\/+/, '');
+    for (const dir of possibleDirs) {
+        try {
+            if (!fs.existsSync(dir))
+                continue;
+            const resolved = path.resolve(dir, relPath);
+            if (!resolved.startsWith(path.resolve(dir) + path.sep))
+                continue;
+            if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile())
+                continue;
+            const ext = path.extname(resolved).toLowerCase();
+            const mime = {
+                '.json': 'application/json',
+                '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                '.pdf': 'application/pdf',
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.csv': 'text/csv',
+            };
+            res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+            return res.send(fs.readFileSync(resolved));
+        }
+        catch { /* try next */ }
+    }
+    res.status(404).json({ error: 'File not found' });
+});
+// Health
+app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), mode: 'vercel' });
+});
+// Upload Excel / CSV
+app.post('/api/upload/excel', upload.single('excel'), (req, res) => {
+    try {
+        if (!req.file)
+            return res.status(400).json({ error: 'Файл не загружен' });
+        const originalName = req.file.originalname || '';
+        const ext = originalName.toLowerCase().split('.').pop() || '';
+        let workbook;
+        if (ext === 'csv') {
+            // CSV: detect encoding (UTF-8 first, fallback to Windows-1251 for Russian Excel exports)
+            let csvText;
+            const buf = Buffer.from(req.file.buffer);
+            try {
+                csvText = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+            }
+            catch {
+                csvText = new TextDecoder('windows-1251').decode(buf);
+            }
+            workbook = XLSX.read(csvText, { type: 'string' });
+        }
+        else if (ext === 'xlsx' || ext === 'xls') {
+            workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        }
+        else {
+            return res.status(400).json({ error: 'Только CSV, XLSX или XLS' });
+        }
+        if (workbook.SheetNames.length === 0)
+            return res.status(400).json({ error: 'Файл пуст' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        if (!sheet)
+            return res.status(400).json({ error: 'Лист не найден' });
+        const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        if (rawData.length === 0)
+            return res.status(400).json({ error: 'Нет данных' });
+        const columns = Object.keys(rawData[0]);
+        const rows = rawData.map(row => {
+            const stringRow = {};
+            for (const key of columns) {
+                const val = row[key];
+                stringRow[key] = val !== undefined && val !== null ? String(val) : '';
+            }
+            return stringRow;
+        });
+        res.json({ success: true, columns, rows, totalRows: rows.length, preview: rows.slice(0, 10) });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Ошибка чтения файла' });
+    }
+});
+// Upload Template
+app.post('/api/upload/template', upload.single('template'), async (req, res) => {
+    try {
+        if (!req.file)
+            return res.status(400).json({ error: 'Шаблон не загружен' });
+        const originalName = req.file.originalname;
+        const ext = originalName.toLowerCase().split('.').pop() || '';
+        let type;
+        if (ext === 'pdf')
+            type = 'pdf';
+        else if (ext === 'png')
+            type = 'png';
+        else
+            type = 'jpg';
+        let width = 842, height = 595;
+        if (type === 'pdf') {
+            const pdfDoc = await pdf_lib_1.PDFDocument.load(req.file.buffer);
+            if (pdfDoc.getPageCount() > 0) {
+                const p = pdfDoc.getPage(0);
+                width = p.getWidth();
+                height = p.getHeight();
+            }
+        }
+        else {
+            const tempDoc = await pdf_lib_1.PDFDocument.create();
+            const img = type === 'png' ? await tempDoc.embedPng(req.file.buffer) : await tempDoc.embedJpg(req.file.buffer);
+            const dims = img.scale(1);
+            width = dims.width;
+            height = dims.height;
+        }
+        const id = `template_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const store = (0, store_1.getStore)();
+        store.templates.set(id, { id, originalFileName: originalName, type, width, height, fileBytes: req.file.buffer });
+        res.json({ success: true, id, type, width, height, originalFileName: originalName, previewUrl: `/api/upload/template/${id}` });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Ошибка шаблона' });
+    }
+});
+// Upload Font
+app.post('/api/upload/font', upload.single('font'), (req, res) => {
+    try {
+        if (!req.file)
+            return res.status(400).json({ error: 'Шрифт не загружен' });
+        const ext = req.file.originalname.toLowerCase().split('.').pop() || '';
+        if (ext !== 'ttf' && ext !== 'otf')
+            return res.status(400).json({ error: 'Только TTF/OTF' });
+        const id = `font_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const fontName = req.file.originalname.replace(/\.[^.]+$/, '');
+        const fontBytes = new Uint8Array(req.file.buffer);
+        const detectedName = readFontFamilyName(fontBytes) || fontName;
+        const store = (0, store_1.getStore)();
+        store.fonts.set(id, { id, fileName: req.file.originalname, fontName: detectedName, fileBytes: fontBytes });
+        res.json({ success: true, id, fileName: req.file.originalname, fontName: detectedName });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Ошибка шрифта' });
+    }
+});
+// List Fonts
+app.get('/api/upload/fonts', (_req, res) => {
+    const store = (0, store_1.getStore)();
+    const fonts = Array.from(store.fonts.values()).map(f => ({
+        id: f.id, fileName: f.fileName, fontName: f.fontName,
+    }));
+    res.json(fonts);
+});
+// ---------- Google Fonts download ----------
+async function downloadGoogleFont(name, weight, italic) {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const styleSuffix = italic ? 'Italic' : '';
+    const staticName = `${name}-${weight}${styleSuffix}`;
+    const urls = [
+        // Static TTF in static/ subdirectory (for fonts with variable TTFs)
+        `https://github.com/google/fonts/raw/main/ofl/${slug}/static/${staticName}.ttf`,
+        // Plain TTF at root level (most common for non-variable fonts)
+        `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}-${weight}${styleSuffix}.ttf`,
+        // Variable font patterns
+        `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bwght%5D.ttf`,
+        `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bwdth,wght%5D.ttf`,
+        `https://github.com/google/fonts/raw/main/ofl/${slug}/${name}%5Bital,wght%5D.ttf`,
+    ];
+    for (const url of urls) {
+        try {
+            const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+            if (!resp.ok)
+                continue;
+            const buf = await resp.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            if (bytes.length < 12)
+                continue;
+            // Verify OpenType magic: 0x00010000 or 'true' or 'OTTO'
+            const magic = bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3];
+            if (magic !== 0x00010000 && magic !== 0x74727565 && magic !== 0x4f54544f)
+                continue;
+            return { bytes, fileName: decodeURIComponent(url.substring(url.lastIndexOf('/') + 1)) };
+        }
+        catch { /* try next */ }
+    }
+    return null;
+}
+app.post('/api/fonts/google', async (req, res) => {
+    try {
+        const { name, weight = 'Regular', italic = false } = req.body;
+        if (!name || typeof name !== 'string')
+            return res.status(400).json({ error: 'Font name required (e.g. "Roboto")' });
+        const normalizedWeight = weight.charAt(0).toUpperCase() + weight.slice(1).toLowerCase();
+        const result = await downloadGoogleFont(name, normalizedWeight, italic);
+        if (!result)
+            return res.status(404).json({ error: `Font "${name}" not found on GitHub mirror. Try manual upload.` });
+        const store = (0, store_1.getStore)();
+        const id = 'google_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + normalizedWeight.toLowerCase() + (italic ? '_italic' : '');
+        store.fonts.set(id, { id, fileName: result.fileName, fontName: name, fileBytes: result.bytes });
+        res.json({ id, fontName: name, fileName: result.fileName, sizeBytes: result.bytes.length });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Google Font download failed' });
+    }
+});
+// ---------- Font Catalog (Google Fonts discovery) ----------
+let _catalogCache = null;
+let _catalogFetching = null;
+async function fetchGoogleFontsCatalog() {
+    if (_catalogCache)
+        return _catalogCache;
+    if (_catalogFetching)
+        return _catalogFetching;
+    _catalogFetching = (async () => {
+        try {
+            const resp = await fetch('https://fonts.google.com/metadata/fonts', {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                signal: AbortSignal.timeout(15000),
+            });
+            let text = await resp.text();
+            if (text.startsWith(")]}'"))
+                text = text.slice(5);
+            const data = JSON.parse(text);
+            _catalogCache = data.familyMetadataList || [];
+            return _catalogCache;
+        }
+        catch {
+            return [];
+        }
+        finally {
+            _catalogFetching = null;
+        }
+    })();
+    return _catalogFetching;
+}
+app.get('/api/fonts/catalog', async (req, res) => {
+    try {
+        const source = req.query.source || 'google';
+        const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+        const search = (req.query.search || '').toLowerCase();
+        let list;
+        if (source === 'google') {
+            list = await fetchGoogleFontsCatalog();
+        }
+        else {
+            return res.status(400).json({ error: 'Unknown source' });
+        }
+        if (search)
+            list = list.filter((f) => f.family.toLowerCase().includes(search));
+        const store = (0, store_1.getStore)();
+        const installedNames = new Set(Array.from(store.fonts.values()).map(f => f.fontName.toLowerCase()));
+        const items = list.slice(0, limit).map((f) => ({
+            fontName: f.family,
+            category: f.category || 'sans-serif',
+            variants: f.variants || ['regular'],
+            downloaded: installedNames.has(f.family.toLowerCase()),
+        }));
+        res.json({ items, total: list.length });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Catalog fetch failed' });
+    }
+});
+// Serve font file for preview
+app.get('/api/fonts/file/:id', (req, res) => {
+    const store = (0, store_1.getStore)();
+    const font = store.fonts.get(req.params.id);
+    if (!font)
+        return res.status(404).json({ error: 'Font not found' });
+    res.setHeader('Content-Type', 'application/x-font-ttf');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(Buffer.from(font.fileBytes));
+});
+// List Templates
+app.get('/api/upload/templates', (_req, res) => {
+    const store = (0, store_1.getStore)();
+    const templates = Array.from(store.templates.values()).map(t => ({
+        id: t.id, originalFileName: t.originalFileName,
+        type: t.type, width: t.width, height: t.height,
+        previewUrl: `/api/upload/template/${t.id}`,
+    }));
+    res.json(templates);
+});
+// Download Template
+app.get('/api/upload/template/:id', (req, res) => {
+    const store = (0, store_1.getStore)();
+    const t = store.templates.get(req.params.id);
+    if (!t)
+        return res.status(404).json({ error: 'Шаблон не найден' });
+    const mime = t.type === 'pdf' ? 'application/pdf' : t.type === 'png' ? 'image/png' : 'image/jpeg';
+    res.setHeader('Content-Type', mime);
+    res.send(Buffer.from(t.fileBytes));
+});
+// Generate Test PDF
+app.post('/api/generate/test', async (req, res) => {
+    try {
+        const { row, templateId, fields, templateData, templateType, templateWidth, templateHeight } = req.body;
+        if (!row)
+            return res.status(400).json({ error: 'Пустая строка' });
+        if (!templateId)
+            return res.status(400).json({ error: 'Не указан шаблон' });
+        const store = (0, store_1.getStore)();
+        let template = store.templates.get(templateId);
+        if (!template && templateData) {
+            try {
+                const bytes = new Uint8Array(Buffer.from(templateData, 'base64'));
+                let type = templateType === 'pdf' ? 'pdf' : templateType === 'jpg' || templateType === 'jpeg' ? 'jpg' : 'png';
+                let width = Number(templateWidth) || 1122;
+                let height = Number(templateHeight) || 794;
+                if (type === 'pdf') {
+                    const doc = await pdf_lib_1.PDFDocument.load(bytes);
+                    const page = doc.getPage(0);
+                    width = page.getWidth();
+                    height = page.getHeight();
+                }
+                template = { id: templateId, originalFileName: 'template.' + (type === 'pdf' ? 'pdf' : type), type, width, height, fileBytes: bytes };
+                store.templates.set(templateId, template);
+            }
+            catch (err) {
+                return res.status(400).json({ error: 'Не удалось прочитать шаблон: ' + err.message });
+            }
+        }
+        if (!template)
+            return res.status(400).json({ error: 'Шаблон не найден (перезагрузите шаблон)' });
+        const pdfDoc = await pdf_lib_1.PDFDocument.create();
+        pdfDoc.registerFontkit(fontkit_1.default);
+        await generateSingleCertificate(template, fields || [], row, pdfDoc);
+        const pdfBytes = await pdfDoc.save();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline; filename="preview.pdf"');
+        res.send(Buffer.from(pdfBytes));
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Ошибка генерации' });
+    }
+});
+// Generate All
+app.post('/api/generate', async (req, res) => {
+    try {
+        const { excelData, templateId, fields, exportConfig, templateData, templateType, templateWidth, templateHeight } = req.body;
+        if (!excelData || !Array.isArray(excelData) || excelData.length === 0) {
+            return res.status(400).json({ error: 'Данные Excel отсутствуют' });
+        }
+        if (!templateId)
+            return res.status(400).json({ error: 'Не указан шаблон' });
+        if (!fields || !Array.isArray(fields) || fields.length === 0) {
+            return res.status(400).json({ error: 'Нет текстовых полей' });
+        }
+        const store = (0, store_1.getStore)();
+        let template = store.templates.get(templateId);
+        // Serverless instances don't share memory — re-register template from client bytes if needed
+        if (!template && templateData) {
+            try {
+                const bytes = new Uint8Array(Buffer.from(templateData, 'base64'));
+                let type = templateType === 'pdf' ? 'pdf' : templateType === 'jpg' || templateType === 'jpeg' ? 'jpg' : 'png';
+                let width = Number(templateWidth) || 1122;
+                let height = Number(templateHeight) || 794;
+                if (type === 'pdf') {
+                    const doc = await pdf_lib_1.PDFDocument.load(bytes);
+                    const page = doc.getPage(0);
+                    width = page.getWidth();
+                    height = page.getHeight();
+                }
+                template = { id: templateId, originalFileName: 'template.' + (type === 'pdf' ? 'pdf' : type), type, width, height, fileBytes: bytes };
+                store.templates.set(templateId, template);
+            }
+            catch (err) {
+                return res.status(400).json({ error: 'Не удалось прочитать шаблон: ' + err.message });
+            }
+        }
+        if (!template)
+            return res.status(400).json({ error: 'Шаблон не найден' });
+        const isSeparate = exportConfig.mode === 'separate';
+        const generatedPdfs = [];
+        const errors = [];
+        let successCount = 0;
+        if (isSeparate) {
+            for (let i = 0; i < excelData.length; i++) {
+                try {
+                    const doc = await pdf_lib_1.PDFDocument.create();
+                    doc.registerFontkit(fontkit_1.default);
+                    await generateSingleCertificate(template, fields, excelData[i], doc);
+                    const bytes = await doc.save();
+                    const name = (0, sanitize_1.applyFileNameTemplate)(exportConfig.fileNameTemplate, excelData[i], i) + '.pdf';
+                    generatedPdfs.push({ name, bytes });
+                    successCount++;
+                }
+                catch (err) {
+                    errors.push({ row: i + 1, message: err.message });
+                }
+            }
+        }
+        else {
+            try {
+                const doc = await pdf_lib_1.PDFDocument.create();
+                doc.registerFontkit(fontkit_1.default);
+                for (let i = 0; i < excelData.length; i++) {
+                    await generateSingleCertificate(template, fields, excelData[i], doc);
+                    successCount++;
+                }
+                const bytes = await doc.save();
+                const name = (exportConfig.combinedFileName || 'certificates_all').replace(/\.pdf$/i, '') + '.pdf';
+                generatedPdfs.push({ name, bytes });
+            }
+            catch (err) {
+                errors.push({ row: 0, message: err.message });
+            }
+        }
+        // Create ZIP if separate mode
+        let zipBytes = null;
+        if (isSeparate && generatedPdfs.length > 1) {
+            zipBytes = await new Promise((resolve, reject) => {
+                const chunks = [];
+                const archive = (0, archiver_1.default)('zip', { zlib: { level: 9 } });
+                const readable = archive;
+                readable.on('data', (chunk) => chunks.push(chunk));
+                readable.on('end', () => resolve(new Uint8Array(Buffer.concat(chunks))));
+                archive.on('error', reject);
+                for (const pdf of generatedPdfs) {
+                    archive.append(Buffer.from(pdf.bytes), { name: pdf.name });
+                }
+                archive.finalize();
+            });
+        }
+        const exportId = `export_${Date.now()}`;
+        const fileNames = generatedPdfs.map(p => p.name);
+        // Save generation record
+        store.generations.unshift({
+            id: exportId, templateId, totalRows: excelData.length,
+            successCount, errorCount: errors.length,
+            exportMode: exportConfig.mode, createdAt: new Date().toISOString(),
+            files: fileNames, errors,
+        });
+        // Return response with PDF data for download
+        const MAX_INLINE = 3.5 * 1024 * 1024; // inline base64 only for small outputs (<3.5MB)
+        let zipBase64 = null;
+        let pdfBase64 = null;
+        if (zipBytes && zipBytes.length <= MAX_INLINE) {
+            zipBase64 = Buffer.from(zipBytes).toString('base64');
+        }
+        else if (generatedPdfs.length === 1 && generatedPdfs[0].bytes.length <= MAX_INLINE) {
+            pdfBase64 = Buffer.from(generatedPdfs[0].bytes).toString('base64');
+        }
+        res.json({
+            success: true,
+            exportId,
+            totalRows: excelData.length,
+            successCount,
+            errorCount: errors.length,
+            files: fileNames,
+            errors,
+            pdfs: generatedPdfs.map(p => ({ name: p.name, size: p.bytes.length })),
+            zipSize: zipBytes ? zipBytes.length : null,
+            zipBase64,
+            pdfBase64,
+            _downloadHint: `Use GET /api/download/pdf/${exportId} or /api/download/zip/${exportId}`,
+        });
+        // Store generated PDFs and zip for download
+        globalThis.__generatedPdfs = globalThis.__generatedPdfs || {};
+        globalThis.__generatedPdfs[exportId] = { pdfs: generatedPdfs, zipBytes };
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Ошибка генерации' });
+    }
+});
+// Download single PDF by export ID + index
+app.get('/api/download/pdf/:exportId/:index?', (req, res) => {
+    const data = globalThis.__generatedPdfs?.[req.params.exportId];
+    if (!data)
+        return res.status(404).json({ error: 'Файлы не найдены. Сгенерируйте заново.' });
+    const idx = parseInt(req.params.index || '0') || 0;
+    if (idx >= data.pdfs.length)
+        return res.status(404).json({ error: 'Индекс за пределами' });
+    const pdf = data.pdfs[idx];
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(pdf.name)}"`);
+    res.send(Buffer.from(pdf.bytes));
+});
+// Download ZIP
+app.get('/api/download/zip/:exportId', (req, res) => {
+    const data = globalThis.__generatedPdfs?.[req.params.exportId];
+    if (!data?.zipBytes)
+        return res.status(404).json({ error: 'ZIP не найден. Сгенерируйте заново.' });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="certificates.zip"`);
+    res.send(Buffer.from(data.zipBytes));
+});
+// Generation History
+app.get('/api/generate/history', (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const store = (0, store_1.getStore)();
+    const all = store.generations;
+    const total = all.length;
+    const items = all.slice((page - 1) * limit, page * limit);
+    res.json({ items, total, page, limit, totalPages: Math.ceil(total / limit) });
+});
+app.get('/api/generate/history/:id', (req, res) => {
+    const store = (0, store_1.getStore)();
+    const gen = store.generations.find(g => g.id === req.params.id);
+    if (!gen)
+        return res.status(404).json({ error: 'Не найдено' });
+    res.json(gen);
+});
+// Download sample Excel template
+app.get('/api/download/excel-template', (_req, res) => {
+    try {
+        const wb = XLSX.utils.book_new();
+        const sampleData = [
+            { name: 'Иван Иванов', email: 'ivan@example.com', certificate_number: '001', course: 'Курс по TypeScript', date: '2024-01-15' },
+            { name: 'Мария Петрова', email: 'maria@example.com', certificate_number: '002', course: 'Курс по React', date: '2024-01-20' },
+            { name: 'Алексей Сидоров', email: 'alex@example.com', certificate_number: '003', course: 'Курс по Node.js', date: '2024-02-01' },
+        ];
+        const ws = XLSX.utils.json_to_sheet(sampleData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Участники');
+        const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="template.xlsx"');
+        res.send(Buffer.from(buf));
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message || 'Ошибка создания шаблона' });
+    }
+});
+// Queue status (no real queue on serverless, just return empty)
+app.get('/api/generate/queue', (_req, res) => {
+    res.json({ queued: 0, active: false, activeTaskId: null });
+});
+// ---------- Vercel Handler ----------
+async function handler(req, res) {
+    return app(req, res);
+}
+exports.default = handler;

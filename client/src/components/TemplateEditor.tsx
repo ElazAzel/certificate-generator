@@ -125,6 +125,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   // Render PDF first page as image preview
   useEffect(() => {
     if (template?.type !== 'pdf') { setPdfPreviewUrl(null); return; }
+    if (!template.previewUrl) {
+      setPdfPreviewUrl(null);
+      setPdfLoading(false);
+      return;
+    }
     let cancelled = false;
     setPdfLoading(true);
 

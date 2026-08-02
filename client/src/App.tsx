@@ -50,6 +50,7 @@ export default function App() {
     handleTemplateUpload,
     setTemplateDirect,
     resetTemplate,
+    getTemplateData,
   } = useTemplate();
 
   const {
@@ -302,7 +303,13 @@ export default function App() {
     const row = excelData.rows[currentRowIndex];
     if (!row) return;
     try {
-      const blob = await generateTestPdf(row, template.id, fields);
+      const tplData = await getTemplateData();
+      const blob = await generateTestPdf(
+        row,
+        template.id,
+        fields,
+        tplData || undefined
+      );
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
     } catch (err: any) {
@@ -350,11 +357,16 @@ export default function App() {
       const total = rows.length;
 
       setCurrentProcessingRow('Генерация...');
+      const tplData = await getTemplateData();
       const response = await generateCertificates({
         excelData: rows,
         templateId: template.id,
         fields,
         exportConfig,
+        templateData: tplData?.base64,
+        templateType: tplData?.type,
+        templateWidth: tplData?.width,
+        templateHeight: tplData?.height,
       });
 
       setGenerationProgress(100);

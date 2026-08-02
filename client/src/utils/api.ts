@@ -68,6 +68,11 @@ export interface GenerateParams {
   templateId: string;
   fields: FieldConfig[];
   exportConfig: ExportConfig;
+  /** Template file bytes (base64) — lets the server render even on a fresh serverless instance */
+  templateData?: string;
+  templateType?: string;
+  templateWidth?: number;
+  templateHeight?: number;
 }
 
 export interface GenerateResponse {
@@ -79,6 +84,8 @@ export interface GenerateResponse {
   errorCount: number;
   files: string[];
   errors: { row: number; message: string }[];
+  zipBase64?: string | null;
+  pdfBase64?: string | null;
 }
 
 export async function generateCertificates(params: GenerateParams): Promise<GenerateResponse> {
@@ -129,14 +136,23 @@ export async function getGenerationHistory(page = 1, limit = 20): Promise<{
 export async function generateTestPdf(
   row: Record<string, string>,
   templateId: string,
-  fields: FieldConfig[]
+  fields: FieldConfig[],
+  templateData?: { base64: string; type: string; width: number; height: number }
 ): Promise<Blob> {
   const response = await fetch(`${BASE_URL}/generate/test`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ row, templateId, fields }),
+    body: JSON.stringify({
+      row,
+      templateId,
+      fields,
+      templateData: templateData?.base64,
+      templateType: templateData?.type,
+      templateWidth: templateData?.width,
+      templateHeight: templateData?.height,
+    }),
   });
 
   if (!response.ok) {
