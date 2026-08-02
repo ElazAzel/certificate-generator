@@ -21,94 +21,76 @@ export const ExportSettings: React.FC<ExportSettingsProps> = ({
   isValid,
   isGenerating,
 }) => {
+  const format = config.format || 'pdf';
+  const isPdf = format === 'pdf';
+
   return (
     <div className="export-grid" style={{ width: '100%' }}>
-      <div style={{ display: 'flex', gap: '2rem', flex: 1 }}>
-        <div className="form-group" style={{ minWidth: '220px' }}>
-          <label>Режим экспорта</label>
-          <select 
-            className="input-control"
-            value={config.mode}
-            onChange={(e) => onUpdateConfig({ mode: e.target.value as 'separate' | 'combined' })}
-          >
-            <option value="separate">Раздельные PDF-файлы</option>
-            <option value="combined">Один общий PDF-файл</option>
-          </select>
-        </div>
-
-        <div className="form-group" style={{ minWidth: '140px' }}>
-          <label>Формат файла</label>
-          <select 
-            className="input-control"
-            value={config.format || 'pdf'}
+      <div className="export-controls">
+        <div className="export-field">
+          <label>Формат</label>
+          <select
+            className="input-control input-control-sm"
+            value={format}
             onChange={(e) => onUpdateConfig({ format: e.target.value as 'pdf' | 'png' | 'jpg' })}
           >
             <option value="pdf">PDF</option>
-            <option value="png">PNG (изображение)</option>
-            <option value="jpg">JPG (изображение)</option>
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
           </select>
-          {config.format && config.format !== 'pdf' && (
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: '0.25rem', lineHeight: 1.4 }}>
-              Изображения генерируются в браузере и скачиваются одним ZIP-архивом.
-            </p>
-          )}
         </div>
 
-        <div className="form-group" style={{ flex: 1, display: config.mode === 'separate' ? 'flex' : 'none' }}>
-          <label>Шаблон имени файла (например, <code>{"{name}_{certificate_number}.pdf"}</code>)</label>
-          <input 
-            type="text" 
-            className="input-control" 
-            value={config.fileNameTemplate}
-            onChange={(e) => onUpdateConfig({ fileNameTemplate: e.target.value })}
-            placeholder="{name}.pdf"
-          />
-        </div>
-        <div className="form-group" style={{ flex: 1, display: config.mode === 'combined' ? 'flex' : 'none' }}>
-          <label>Имя общего PDF-файла</label>
-          <input 
-            type="text" 
-            className="input-control" 
-            value={config.combinedFileName}
-            onChange={(e) => onUpdateConfig({ combinedFileName: e.target.value })}
-            placeholder="certificates_all.pdf"
-          />
+        <div className="export-field" style={{ display: isPdf ? undefined : 'none' }}>
+          <label>Режим</label>
+          <select
+            className="input-control input-control-sm"
+            value={config.mode}
+            onChange={(e) => onUpdateConfig({ mode: e.target.value as 'separate' | 'combined' })}
+          >
+            <option value="separate">Раздельно</option>
+            <option value="combined">Один файл</option>
+          </select>
         </div>
 
-        <div className="form-group" style={{ width: '240px' }}>
-          <label title="Путь к папке на сервере, куда будут сохранены PDF-файлы">Папка сохранения (на сервере)</label>
-          <input 
-            type="text" 
-            className="input-control" 
-            value={config.outputFolder}
-            onChange={(e) => onUpdateConfig({ outputFolder: e.target.value })}
-            placeholder="output"
+        <div className="export-field" style={{ flex: 1, minWidth: '180px' }}>
+          <label>Имя файла</label>
+          <input
+            type="text"
+            className="input-control input-control-sm"
+            value={isPdf && config.mode === 'separate' ? config.fileNameTemplate : isPdf ? config.combinedFileName : config.fileNameTemplate}
+            onChange={(e) => {
+              if (!isPdf) onUpdateConfig({ fileNameTemplate: e.target.value });
+              else if (config.mode === 'separate') onUpdateConfig({ fileNameTemplate: e.target.value });
+              else onUpdateConfig({ combinedFileName: e.target.value });
+            }}
+            placeholder={isPdf && config.mode === 'combined' ? 'certificates_all.pdf' : `{name}.${format}`}
+            title={isPdf && config.mode === 'combined' ? 'Имя общего PDF-файла' : `Шаблон имени файла (например, {name}.${format})`}
           />
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-        <button 
-          className="btn btn-secondary"
+      <div className="export-actions">
+        <button
+          className="btn btn-secondary btn-sm"
           onClick={onGenerateTest}
-          disabled={!isValid || isGenerating}
-          title="Сгенерировать PDF-файл для текущей выбранной строки, чтобы проверить шрифты и позиции"
+          disabled={!isValid || isGenerating || !isPdf}
+          title={isPdf ? 'Сгенерировать PDF для текущей строки' : 'Тестовое превью доступно только для PDF'}
           style={{ whiteSpace: 'nowrap' }}
         >
-          <IconTestPdf size={16} /> Тестовый PDF
+          <IconTestPdf size={15} /> Тест
         </button>
-        
-        <button 
+
+        <button
           className="footer-generate-btn"
           onClick={onGenerate}
           disabled={!isValid || isGenerating}
         >
-          {isGenerating ? <><IconSpinner size={18} /> Генерация...</> : <><IconGenerate size={18} /> Создать сертификаты</>}
+          {isGenerating ? <><IconSpinner size={17} /> Генерация...</> : <><IconGenerate size={17} /> Создать</>}
         </button>
 
         {!isValid && !isGenerating && (
-          <span style={{ fontSize: '0.7rem', color: 'var(--danger)', fontWeight: 500, maxWidth: '180px', lineHeight: 1.3 }}>
-            <IconWarning size={14} /> Устраните ошибки настройки
+          <span className="export-error" title={excelColumns.length ? 'Устраните ошибки настройки' : undefined}>
+            <IconWarning size={14} />
           </span>
         )}
       </div>
