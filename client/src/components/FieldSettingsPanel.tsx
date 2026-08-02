@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { FieldConfig, FontInfo, CatalogFontInfo, HAlign, VAlign, TextOverflow } from '../types/index';
+import type { FieldConfig, FontInfo, CatalogFontInfo, HAlign, VAlign, TextOverflow, FieldContentType } from '../types/index';
 import { getFontCatalog } from '../utils/api';
+import { IconQrCode } from './Icons';
 
 interface FieldSettingsPanelProps {
   field?: FieldConfig;
@@ -138,20 +139,48 @@ export const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
         </div>
       </Section>
 
-      <Section title="Текст и данные">
+      <Section title="Тип поля" defaultOpen={false}>
+        <div className="form-group">
+          <label>Содержимое</label>
+          <select
+            className="input-control"
+            value={field.contentType || 'text'}
+            onChange={(e) => onUpdateField({ contentType: e.target.value as FieldContentType })}
+          >
+            <option value="text">Текст (из колонки Excel)</option>
+            <option value="qr">QR-код</option>
+          </select>
+        </div>
+        {field.contentType === 'qr' ? (
+          <div className="form-group">
+            <label>QR-содержимое (поддерживает <code>{"{колонка}"}</code>)</label>
+            <input
+              type="text"
+              className="input-control"
+              value={field.qrValueTemplate || ''}
+              onChange={(e) => onUpdateField({ qrValueTemplate: e.target.value })}
+              placeholder="https://example.com/verify/{certificate_number}"
+            />
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', lineHeight: 1.4 }}>
+              <IconQrCode size={12} /> Шаблон кодируется в QR. Пример: <code>https://example.com/verify?id={'{certificate_number}'}</code>
+            </p>
+          </div>
+        ) : (
+          <div className="form-group">
+            <label>Колонка Excel</label>
+            {excelColumns.length > 0 ? (
+              <select className="input-control" value={field.excelColumn} onChange={(e) => onUpdateField({ excelColumn: e.target.value })}>
+                <option value="">Фиксированный текст (из названия поля)</option>
+                {excelColumns.map(col => (<option key={col} value={col}>{col}</option>))}
+              </select>
+            ) : (
+              <input type="text" className="input-control" value={field.excelColumn} onChange={(e) => onUpdateField({ excelColumn: e.target.value })} placeholder="Имя колонки (например, name)" />
+            )}
+          </div>
+        )}
         <div className="form-group">
           <label>Название поля</label>
           <input type="text" className="input-control" value={field.label} onChange={(e) => onUpdateField({ label: e.target.value })} />
-        </div>
-        <div className="form-group">
-          <label>Колонка Excel</label>
-          {excelColumns.length > 0 ? (
-            <select className="input-control" value={field.excelColumn} onChange={(e) => onUpdateField({ excelColumn: e.target.value })}>
-              {excelColumns.map(col => (<option key={col} value={col}>{col}</option>))}
-            </select>
-          ) : (
-            <input type="text" className="input-control" value={field.excelColumn} onChange={(e) => onUpdateField({ excelColumn: e.target.value })} placeholder="Имя колонки (например, name)" />
-          )}
         </div>
       </Section>
 

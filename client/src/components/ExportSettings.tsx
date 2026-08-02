@@ -36,6 +36,24 @@ export const ExportSettings: React.FC<ExportSettingsProps> = ({
           </select>
         </div>
 
+        <div className="form-group" style={{ minWidth: '140px' }}>
+          <label>Формат файла</label>
+          <select 
+            className="input-control"
+            value={config.format || 'pdf'}
+            onChange={(e) => onUpdateConfig({ format: e.target.value as 'pdf' | 'png' | 'jpg' })}
+          >
+            <option value="pdf">PDF</option>
+            <option value="png">PNG (изображение)</option>
+            <option value="jpg">JPG (изображение)</option>
+          </select>
+          {config.format && config.format !== 'pdf' && (
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: '0.25rem', lineHeight: 1.4 }}>
+              Изображения генерируются в браузере и скачиваются одним ZIP-архивом.
+            </p>
+          )}
+        </div>
+
         <div className="form-group" style={{ flex: 1, display: config.mode === 'separate' ? 'flex' : 'none' }}>
           <label>Шаблон имени файла (например, <code>{"{name}_{certificate_number}.pdf"}</code>)</label>
           <input 

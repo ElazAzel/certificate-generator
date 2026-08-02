@@ -29,6 +29,7 @@ export interface CatalogFontInfo {
 export type TextOverflow = 'single-line' | 'multiline' | 'shrink-to-fit' | 'clip';
 export type HAlign = 'left' | 'center' | 'right';
 export type VAlign = 'top' | 'middle' | 'bottom';
+export type FieldContentType = 'text' | 'qr';
 
 export interface FieldConfig {
   id: string;
@@ -50,7 +51,11 @@ export interface FieldConfig {
   lineHeight: number; // multiplier, e.g. 1.2
   mode: TextOverflow;
   visible: boolean;
+  contentType?: FieldContentType; // 'text' (default) | 'qr'
+  qrValueTemplate?: string;       // e.g. "https://verify.example/{certificate_number}"
 }
+
+export type ExportFormat = 'pdf' | 'png' | 'jpg';
 
 export interface ExportConfig {
   mode: 'separate' | 'combined';
@@ -58,6 +63,7 @@ export interface ExportConfig {
   fileNameColumn: string;
   outputFolder: string;
   combinedFileName: string;
+  format?: ExportFormat;
 }
 
 export interface ProjectConfig {

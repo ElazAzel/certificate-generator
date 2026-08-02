@@ -508,6 +508,7 @@ body {
   background: white;
   border-radius: 4px;
   user-select: none;
+  touch-action: none;
   transition: width 0.1s ease, height 0.1s ease;
 }
 
@@ -541,6 +542,7 @@ body {
   background: rgba(45, 74, 122, 0.06);
   display: flex;
   cursor: move;
+  touch-action: none;
   box-sizing: border-box;
   border-radius: 2px;
   transition: border-color 0.1s, background-color 0.1s;
@@ -1513,6 +1515,79 @@ select.input-control {
 
 .success-pop {
   animation: successPop 0.4s ease;
+}
+
+/* ===== SAMPLE TEMPLATES GALLERY ===== */
+.sample-templates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.sample-template-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.sample-template-item:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(45, 74, 122, 0.06);
+  transform: translateX(2px);
+}
+
+.sample-template-item:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sample-template-type {
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.sample-template-type-pdf { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+.sample-template-type-png { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.sample-template-type-jpg { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+
+.sample-template-name {
+  flex: 1;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sample-template-size {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+}
+
+.visual-qr-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: rgba(45, 74, 122, 0.04);
+  border-radius: 2px;
 }
 
 @media (max-width: 600px) {

@@ -89,3 +89,12 @@ export const IconSuccessPop: React.FC<IconProps> = (p) => (
     <circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" />
   </svg>
 );
+export const IconTemplate: React.FC<IconProps> = (p) => (
+  <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></Icon>
+);
+export const IconQrCode: React.FC<IconProps> = (p) => (
+  <Icon {...p}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><line x1="14" y1="14" x2="17" y2="14" /><line x1="21" y1="14" x2="21" y2="17" /><line x1="14" y1="21" x2="21" y2="21" /><line x1="17" y1="17" x2="17" y2="21" /></Icon>
+);
+export const IconImageDownload: React.FC<IconProps> = (p) => (
+  <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /><rect x="3" y="18" width="18" height="3" /></Icon>
+);

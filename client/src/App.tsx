@@ -17,8 +17,9 @@ import { useTemplate } from './hooks/useTemplate';
 import { useFields } from './hooks/useFields';
 
 import type { FontInfo, ExportConfig, ProjectConfig, FieldConfig, CatalogFontInfo } from './types/index';
-import type { GenerateResponse } from './utils/api';
-import { getFonts, uploadFont, generateCertificates, generateTestPdf, getTemplates, getFontCatalog, downloadGoogleFont } from './utils/api';
+import type { GenerateResponse, SampleTemplateInfo } from './utils/api';
+import { getFonts, uploadFont, generateCertificates, generateTestPdf, getTemplates, getFontCatalog, downloadGoogleFont, getSampleTemplates, downloadSampleTemplate } from './utils/api';
+import { generateImages } from './utils/imageExport';
 
 import './styles/global.css';
 
@@ -78,7 +79,10 @@ export default function App() {
     fileNameColumn: 'name',
     outputFolder: 'output',
     combinedFileName: 'certificates_all.pdf',
+    format: 'pdf',
   });
+  const [sampleTemplates, setSampleTemplates] = useState<SampleTemplateInfo[]>([]);
+  const [sampleLoading, setSampleLoading] = useState(false);
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -122,10 +126,34 @@ export default function App() {
     }
   };
 
+  const loadSampleTemplates = async () => {
+    try {
+      const items = await getSampleTemplates();
+      setSampleTemplates(items);
+    } catch {
+      // samples unavailable
+    }
+  };
+
+  const handleLoadSampleTemplate = async (fileName: string) => {
+    if (sampleLoading) return;
+    setSampleLoading(true);
+    try {
+      const file = await downloadSampleTemplate(fileName);
+      await handleTemplateUpload(file);
+      showToast(`Шаблон «${fileName}» загружен`, 'success');
+    } catch (err: any) {
+      showToast(`Ошибка загрузки шаблона: ${err.message}`, 'error');
+    } finally {
+      setSampleLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadFontsList();
     loadFontCatalog();
     loadDefaultTemplate();
+    loadSampleTemplates();
   }, []);
 
   useEffect(() => {
@@ -197,6 +225,7 @@ export default function App() {
       fileNameColumn: 'name',
       outputFolder: 'output',
       combinedFileName: 'certificates_all.pdf',
+      format: 'pdf',
     });
     setLeftTab('files');
     setShowOnboarding(true);
@@ -239,10 +268,14 @@ export default function App() {
     }
 
     fields.forEach((f) => {
-      if (!f.excelColumn) {
-        errors.push(`Для поля "${f.label}" не выбрана колонка Excel.`);
-      } else if (excelData && !excelData.columns.includes(f.excelColumn)) {
-        errors.push(`Поле "${f.label}" привязано к несуществующей колонке "${f.excelColumn}".`);
+      if (f.contentType === 'qr') {
+        if (!f.qrValueTemplate || !f.qrValueTemplate.trim()) {
+          errors.push(`Для поля "${f.label}" укажите содержимое QR-кода.`);
+        }
+      } else if (f.excelColumn) {
+        if (excelData && !excelData.columns.includes(f.excelColumn)) {
+          errors.push(`Поле "${f.label}" привязано к несуществующей колонке "${f.excelColumn}".`);
+        }
       }
 
       if (f.fontSize <= 0) {
@@ -283,7 +316,36 @@ export default function App() {
     setGenerationProgress(0);
     setGenerationResult(null);
 
+    const format = exportConfig.format || 'pdf';
+
     try {
+      if (format !== 'pdf') {
+        setCurrentProcessingRow('Генерация изображений...');
+        const zip = await generateImages(
+          excelData,
+          template,
+          fields,
+          format,
+          exportConfig.fileNameTemplate,
+          (done, total) => {
+            setGenerationProgress(Math.round((done / total) * 100));
+          }
+        );
+        setGenerationProgress(100);
+        setCurrentProcessingRow('');
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = exportConfig.combinedFileName.replace(/\.pdf$/i, '') || 'certificates';
+        a.download = `${a.download}_images.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`Сгенерировано изображений: ${excelData.rows.length}`, 'success');
+        return;
+      }
+
       const rows = excelData.rows;
       const total = rows.length;
 
@@ -465,6 +527,9 @@ export default function App() {
                   templateLoading={templateLoading}
                   excelError={excelError}
                   templateError={templateError}
+                  sampleTemplates={sampleTemplates}
+                  onLoadSampleTemplate={handleLoadSampleTemplate}
+                  sampleLoading={sampleLoading}
                 />
 
                 {(excelError || templateError) && (

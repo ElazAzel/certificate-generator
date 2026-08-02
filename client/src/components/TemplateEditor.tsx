@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import type { FieldConfig, TemplateInfo } from '../types/index';
-import { IconSpinner, IconImage } from './Icons';
+import { IconSpinner, IconImage, IconQrCode } from './Icons';
 
 interface TemplateEditorProps {
   template?: TemplateInfo;
@@ -13,6 +14,69 @@ interface TemplateEditorProps {
   onScaleChange: (scale: number) => void;
   excelLoaded?: boolean;
   fieldsCount?: number;
+}
+
+interface DragState {
+  fieldId: string;
+  startX: number;
+  startY: number;
+  startFieldX: number;
+  startFieldY: number;
+  type: 'move' | 'resize-se' | 'resize-sw' | 'resize-ne' | 'resize-nw';
+  startWidth: number;
+  startHeight: number;
+}
+
+/** Resolve the display value of a field for a given row (handles fixed text and QR) */
+export function resolveFieldText(field: FieldConfig, row?: Record<string, string>): string {
+  if (field.contentType === 'qr') {
+    const tpl = (field.qrValueTemplate || '').trim();
+    if (!tpl) return `QR: ${field.excelColumn || field.label}`;
+    return tpl.replace(/\{([^}]+)\}/g, (_, col: string) => {
+      const v = row?.[col];
+      return v !== undefined && v !== null && v !== '' ? String(v) : `{${col}}`;
+    });
+  }
+  if (!field.excelColumn) return field.label || '';
+  const v = row?.[field.excelColumn];
+  return v !== undefined ? String(v) : `{${field.excelColumn}}`;
+}
+
+/** Renders a QR code to a data URL for preview purposes */
+export function renderQrDataUrl(text: string, size = 200): Promise<string> {
+  return QRCode.toDataURL(text, {
+    width: size,
+    margin: 1,
+    errorCorrectionLevel: 'M',
+  });
+}
+
+function QrPreview({ value, width, height }: { value: string; width: number; height: number }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUrl(null);
+    setFailed(false);
+    renderQrDataUrl(value || 'QR', 160)
+      .then((u) => { if (!cancelled) setUrl(u); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [value]);
+
+  if (failed) {
+    return (
+      <div className="visual-qr-fallback" style={{ width: '100%', height: '100%' }}>
+        <IconQrCode size={24} />
+      </div>
+    );
+  }
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {url ? <img src={url} alt="QR" style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} /> : <IconQrCode size={20} />}
+    </div>
+  );
 }
 
 export const TemplateEditor: React.FC<TemplateEditorProps> = ({
@@ -31,16 +95,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   const fitScheduled = useRef(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [dragState, setDragState] = useState<{
-    fieldId: string;
-    startX: number;
-    startY: number;
-    startFieldX: number;
-    startFieldY: number;
-    type: 'move' | 'resize-se' | 'resize-sw' | 'resize-ne' | 'resize-nw';
-    startWidth: number;
-    startHeight: number;
-  } | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
 
   // Auto-fit function
   const handleFit = () => {
@@ -77,7 +132,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       try {
         if (typeof (Math as any).sumPrecise === 'undefined') { (Math as any).sumPrecise = (arr: number[]) => arr.reduce((a, b) => a + b, 0); }
         const pdfjs = await import('pdfjs-dist');
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+        pdfjs.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL || '/'}pdf.worker.min.mjs`;
 
         const pdf = await pdfjs.getDocument({ url: template.previewUrl }).promise;
         const page = await pdf.getPage(1);
@@ -100,15 +155,18 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     return () => { cancelled = true; };
   }, [template?.id]);
 
-  // Handles starting drag/resize operations
-  const handleMouseDown = (
-    e: React.MouseEvent,
+  // Handles starting drag/resize operations (works with mouse AND touch via Pointer Events)
+  const handlePointerDown = (
+    e: React.PointerEvent,
     field: FieldConfig,
-    actionType: 'move' | 'resize-se' | 'resize-sw' | 'resize-ne' | 'resize-nw'
+    actionType: DragState['type']
   ) => {
     e.stopPropagation();
     e.preventDefault();
     onSelectField(field.id);
+
+    const target = e.currentTarget as HTMLElement;
+    try { target.setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
 
     setDragState({
       fieldId: field.id,
@@ -122,9 +180,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     });
   };
 
-  // Dragging mousemove handler
+  // Pointer move/up handlers (touch + mouse)
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       if (!dragState || !template) return;
 
       const dx = (e.clientX - dragState.startX) / scale;
@@ -146,8 +204,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         const newX = dragState.startFieldX + (dragState.startWidth - newWidth);
         const newHeight = Math.max(10, Math.min(template.height - field.y, dragState.startHeight + dy));
         if (newX >= 0) {
-          onUpdateField(field.id, { 
-            x: Math.round(newX), 
+          onUpdateField(field.id, {
+            x: Math.round(newX),
             width: Math.round(newWidth),
             height: Math.round(newHeight)
           });
@@ -157,8 +215,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         const newHeight = Math.max(10, dragState.startHeight - dy);
         const newY = dragState.startFieldY + (dragState.startHeight - newHeight);
         if (newY >= 0) {
-          onUpdateField(field.id, { 
-            y: Math.round(newY), 
+          onUpdateField(field.id, {
+            y: Math.round(newY),
             width: Math.round(newWidth),
             height: Math.round(newHeight)
           });
@@ -169,9 +227,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         const newHeight = Math.max(10, dragState.startHeight - dy);
         const newY = dragState.startFieldY + (dragState.startHeight - newHeight);
         if (newX >= 0 && newY >= 0) {
-          onUpdateField(field.id, { 
-            x: Math.round(newX), 
-            y: Math.round(newY), 
+          onUpdateField(field.id, {
+            x: Math.round(newX),
+            y: Math.round(newY),
             width: Math.round(newWidth),
             height: Math.round(newHeight)
           });
@@ -179,18 +237,20 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       }
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       setDragState(null);
     };
 
     if (dragState) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+      window.addEventListener('pointercancel', handlePointerUp);
     }
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
   }, [dragState, scale, template, fields]);
 
@@ -213,7 +273,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
               <div className="quick-start-card" style={{ marginTop: '1.5rem', width: '100%', maxWidth: '400px', textAlign: 'left' }}>
                 <h4>Как это работает:</h4>
                 <ol>
-                  <li>Загрузите Excel с участниками (левая панель)</li>
+                  <li>Загрузите Excel или CSV с участниками (левая панель)</li>
                   <li>Загрузите шаблон сертификата в формате PNG, JPG или PDF</li>
                   <li>Перетаскивайте текстовые поля прямо на шаблоне</li>
                   <li>Настройте шрифты, цвета и положение полей</li>
@@ -249,7 +309,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   return (
     <div className="editor-workspace" ref={containerRef}>
       <div className="editor-toolbar">
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Масштаб:</span>
           <input 
             type="range" 
@@ -314,7 +374,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
           {fields.map((field) => {
             const isActive = field.id === activeFieldId;
-            const textValue = currentRowData[field.excelColumn] ?? `{${field.excelColumn}}`;
+            const isQr = field.contentType === 'qr';
+            const textValue = resolveFieldText(field, currentRowData);
             
             const getTextAlignStyle = () => {
               if (field.align === 'center') return 'center';
@@ -340,8 +401,13 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                   opacity: field.visible ? 1 : 0.4,
                   transform: field.rotation ? `rotate(${field.rotation}deg)` : undefined,
                 }}
-                onMouseDown={(e) => handleMouseDown(e, field, 'move')}
+                onPointerDown={(e) => handlePointerDown(e, field, 'move')}
               >
+                {isQr ? (
+                  <div style={{ width: '100%', height: '100%' }}>
+                    <QrPreview value={textValue} width={field.width} height={field.height} />
+                  </div>
+                ) : (
                 <div 
                   className="visual-field-content"
                   style={{
@@ -357,28 +423,30 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                     whiteSpace: field.mode === 'multiline' ? 'normal' : 'nowrap',
                     textOverflow: field.mode === 'clip' ? 'clip' : 'ellipsis',
                     overflow: 'hidden',
+                    letterSpacing: field.letterSpacing ? `${field.letterSpacing * scale}px` : undefined,
                   }}
                 >
                   {textValue}
                 </div>
+                )}
 
                 {isActive && (
                   <>
                     <div 
                       className="resize-handle resize-handle-nw" 
-                      onMouseDown={(e) => handleMouseDown(e, field, 'resize-nw')}
+                      onPointerDown={(e) => handlePointerDown(e, field, 'resize-nw')}
                     />
                     <div 
                       className="resize-handle resize-handle-ne" 
-                      onMouseDown={(e) => handleMouseDown(e, field, 'resize-ne')}
+                      onPointerDown={(e) => handlePointerDown(e, field, 'resize-ne')}
                     />
                     <div 
                       className="resize-handle resize-handle-sw" 
-                      onMouseDown={(e) => handleMouseDown(e, field, 'resize-sw')}
+                      onPointerDown={(e) => handlePointerDown(e, field, 'resize-sw')}
                     />
                     <div 
                       className="resize-handle resize-handle-se" 
-                      onMouseDown={(e) => handleMouseDown(e, field, 'resize-se')}
+                      onPointerDown={(e) => handlePointerDown(e, field, 'resize-se')}
                     />
                   </>
                 )}

@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, degrees, StandardFonts, setCharacterSpacing } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import * as XLSX from 'xlsx';
 import archiver from 'archiver';
@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import QRCode from 'qrcode';
 import { getStore, type FontRecord, type TemplateRecord, type GenerationRecord } from './store';
 import { uiYToPdfY, calculateTextBaselineY, calculateTextX } from './coordinates';
 import { measureTextWidth, wrapText, shrinkTextToFit } from './textLayout';
@@ -27,6 +28,8 @@ interface FieldConfig {
   letterSpacing: number; lineHeight: number;
   mode: 'single-line' | 'multiline' | 'shrink-to-fit' | 'clip';
   visible: boolean;
+  contentType?: 'text' | 'qr';
+  qrValueTemplate?: string;
 }
 interface ExportConfig {
   mode: 'separate' | 'combined';
@@ -277,71 +280,125 @@ async function generateSingleCertificate(
 
   for (const field of fields) {
     if (!field.visible) continue;
-    const rawText = row[field.excelColumn] !== undefined ? String(row[field.excelColumn]) : '';
-    const text = rawText.trim();
-    if (!text) continue;
+    const isQr = field.contentType === 'qr';
 
-    let fontToUse;
-    const customFont = findFontByName(field.fontFamily);
-    if (customFont) {
-      let fontBytes = customFont.fileBytes;
-      if (field.bold || field.italic) {
-        const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : 'italic';
-        const variant = findFontVariant(fontBytes, style);
-        if (variant) fontBytes = variant;
+    // Fixed text: field without Excel column uses its label as constant value
+    const rawText = isQr
+      ? ''
+      : field.excelColumn
+        ? (row[field.excelColumn] !== undefined ? String(row[field.excelColumn]) : '')
+        : (field.label || '');
+
+    if (!isQr) {
+      const text = rawText.trim();
+      if (!text) continue;
+
+      let fontToUse;
+      const customFont = findFontByName(field.fontFamily);
+      if (customFont) {
+        let fontBytes = customFont.fileBytes;
+        if (field.bold || field.italic) {
+          const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : 'italic';
+          const variant = findFontVariant(fontBytes, style);
+          if (variant) fontBytes = variant;
+        }
+        try {
+          fontToUse = await pdfDoc.embedFont(fontBytes);
+        } catch {
+          const fb = getFallbackFont('regular');
+          fontToUse = await pdfDoc.embedFont(fb ?? StandardFonts.Helvetica);
+        }
+      } else {
+        const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : field.italic ? 'italic' : 'regular';
+        const fb = getFallbackFont(style);
+        if (fb) {
+          fontToUse = await pdfDoc.embedFont(fb);
+        } else {
+          fontToUse = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        }
       }
-      try {
-        fontToUse = await pdfDoc.embedFont(fontBytes);
-      } catch {
-        const fb = getFallbackFont('regular');
-        fontToUse = await pdfDoc.embedFont(fb ?? StandardFonts.Helvetica);
+
+      const color = hexToRgb(field.fontColor);
+      let fontSize = field.fontSize;
+      const mode = field.mode;
+      const letterSpacing = field.letterSpacing || 0;
+
+      if (mode === 'shrink-to-fit') {
+        fontSize = shrinkTextToFit(text, fontToUse, field.fontSize, field.width, field.height, field.lineHeight || 1.2, false);
+        if (fontSize < 4) fontSize = 4;
+      }
+
+      let lines: string[] = [text];
+      if (mode === 'multiline') {
+        lines = wrapText(text, fontToUse, fontSize, field.width);
+      } else if (mode === 'clip') {
+        let currentText = text;
+        while (currentText.length > 0 && measureTextWidth(currentText, fontToUse, fontSize) > field.width) {
+          currentText = currentText.slice(0, -1);
+        }
+        lines = [currentText ? currentText + '...' : ''];
+      }
+
+      const pdfY = uiYToPdfY(field.y, pageHeight, field.height);
+      const totalLines = lines.length;
+      const fontLineHeight = field.lineHeight || 1.2;
+      const lineSpacing = fontSize * fontLineHeight;
+
+      for (let i = 0; i < totalLines; i++) {
+        const lineText = lines[i];
+        const letterSpacingOffset = letterSpacing > 0 ? letterSpacing * Math.max(0, lineText.length - 1) : 0;
+        const textWidth = measureTextWidth(lineText, fontToUse, fontSize) + letterSpacingOffset;
+        const textX = calculateTextX(field.x, field.width, textWidth, field.align);
+        const baseLineY = calculateTextBaselineY(pdfY, field.height, fontSize, field.verticalAlign, totalLines, fontLineHeight);
+        const currentLineY = baseLineY + (totalLines - 1 - i) * lineSpacing;
+        if (letterSpacing > 0) page.pushOperators(setCharacterSpacing(letterSpacing));
+        page.drawText(lineText, {
+          x: textX, y: currentLineY, size: fontSize,
+          font: fontToUse, color,
+          rotate: field.rotation ? degrees(field.rotation) : undefined,
+        });
       }
     } else {
-      const style = field.bold && field.italic ? 'bold-italic' : field.bold ? 'bold' : field.italic ? 'italic' : 'regular';
-      const fb = getFallbackFont(style);
-      if (fb) {
-        fontToUse = await pdfDoc.embedFont(fb);
-      } else {
-        fontToUse = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      // QR code field
+      let qrText = (field.qrValueTemplate || '').trim();
+      if (qrText) {
+        // Replace {column} placeholders with row values
+        qrText = qrText.replace(/\{([^}]+)\}/g, (_, col: string) => {
+          const v = row[col];
+          return v !== undefined ? String(v) : `{${col}}`;
+        });
+      } else if (field.excelColumn) {
+        qrText = row[field.excelColumn] !== undefined ? String(row[field.excelColumn]) : '';
       }
-    }
+      if (!qrText) continue;
 
-    const color = hexToRgb(field.fontColor);
-    let fontSize = field.fontSize;
-    const mode = field.mode;
-
-    if (mode === 'shrink-to-fit') {
-      fontSize = shrinkTextToFit(text, fontToUse, field.fontSize, field.width, field.height, field.lineHeight || 1.2, false);
-      if (fontSize < 4) fontSize = 4;
-    }
-
-    let lines: string[] = [text];
-    if (mode === 'multiline') {
-      lines = wrapText(text, fontToUse, fontSize, field.width);
-    } else if (mode === 'clip') {
-      let currentText = text;
-      while (currentText.length > 0 && measureTextWidth(currentText, fontToUse, fontSize) > field.width) {
-        currentText = currentText.slice(0, -1);
+      try {
+        const qrPng = await QRCode.toBuffer(qrText, {
+          type: 'png',
+          width: 400,
+          margin: 1,
+          errorCorrectionLevel: 'M',
+        });
+        const qrImage = await pdfDoc.embedPng(qrPng);
+        const pdfY = uiYToPdfY(field.y, pageHeight, field.height);
+        const size = Math.min(field.width, field.height);
+        const qrX = field.align === 'center'
+          ? field.x + (field.width - size) / 2
+          : field.align === 'right'
+            ? field.x + field.width - size
+            : field.x;
+        const qrY = field.verticalAlign === 'middle'
+          ? pdfY + (field.height - size) / 2
+          : field.verticalAlign === 'top'
+            ? pdfY + field.height - size
+            : pdfY;
+        page.drawImage(qrImage, {
+          x: qrX, y: qrY, width: size, height: size,
+          rotate: field.rotation ? degrees(field.rotation) : undefined,
+        });
+      } catch (e: any) {
+        simpleLog('warn', `QR generation failed for field "${field.label}": ${e.message}`);
       }
-      lines = [currentText ? currentText + '...' : ''];
-    }
-
-    const pdfY = uiYToPdfY(field.y, pageHeight, field.height);
-    const totalLines = lines.length;
-    const fontLineHeight = field.lineHeight || 1.2;
-    const lineSpacing = fontSize * fontLineHeight;
-
-    for (let i = 0; i < totalLines; i++) {
-      const lineText = lines[i];
-      const textWidth = measureTextWidth(lineText, fontToUse, fontSize);
-      const textX = calculateTextX(field.x, field.width, textWidth, field.align);
-      const baseLineY = calculateTextBaselineY(pdfY, field.height, fontSize, field.verticalAlign, totalLines, fontLineHeight);
-      const currentLineY = baseLineY + (totalLines - 1 - i) * lineSpacing;
-      page.drawText(lineText, {
-        x: textX, y: currentLineY, size: fontSize,
-        font: fontToUse, color,
-        rotate: field.rotation ? degrees(field.rotation) : undefined,
-      });
     }
   }
 }
@@ -384,18 +441,46 @@ app.get('/api/auth/status', (_req, res) => {
   });
 });
 
-// Sample data — GET /api/sample-data/:file
-app.get('/api/sample-data/:file', (req, res) => {
+// Sample templates gallery — GET /api/sample-data/templates
+app.get('/api/sample-data/templates', (_req, res) => {
   const possibleDirs = [
-    path.join(process.cwd(), '..', 'sample-data'),
-    path.join(process.cwd(), 'sample-data'),
+    path.join(process.cwd(), '..', 'sample-data', 'templates'),
+    path.join(process.cwd(), 'sample-data', 'templates'),
   ];
   for (const dir of possibleDirs) {
     try {
       if (!fs.existsSync(dir)) continue;
-      const filePath = path.join(dir, path.basename(req.params.file));
-      if (!fs.existsSync(filePath)) continue;
-      const ext = path.extname(filePath).toLowerCase();
+      const files = fs.readdirSync(dir).filter(f => /\.(pdf|png|jpe?g)$/i.test(f));
+      const items = files.map(f => {
+        const stats = fs.statSync(path.join(dir, f));
+        const ext = path.extname(f).slice(1).toLowerCase();
+        return {
+          fileName: f,
+          name: f.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
+          type: ext === 'pdf' ? 'pdf' : ext === 'png' ? 'png' : 'jpg',
+          size: stats.size,
+        };
+      });
+      return res.json({ items });
+    } catch { /* try next */ }
+  }
+  res.json({ items: [] });
+});
+
+// Sample data — GET /api/sample-data/* (supports nested subpaths, path-traversal safe)
+app.get('/api/sample-data/*', (req, res) => {
+  const possibleDirs = [
+    path.join(process.cwd(), '..', 'sample-data'),
+    path.join(process.cwd(), 'sample-data'),
+  ];
+  const relPath = String(req.params[0]).replace(/\\/g, '/').replace(/^\/+/, '');
+  for (const dir of possibleDirs) {
+    try {
+      if (!fs.existsSync(dir)) continue;
+      const resolved = path.resolve(dir, relPath);
+      if (!resolved.startsWith(path.resolve(dir) + path.sep)) continue;
+      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) continue;
+      const ext = path.extname(resolved).toLowerCase();
       const mime: Record<string, string> = {
         '.json': 'application/json',
         '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -405,7 +490,7 @@ app.get('/api/sample-data/:file', (req, res) => {
         '.csv': 'text/csv',
       };
       res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
-      return res.send(fs.readFileSync(filePath));
+      return res.send(fs.readFileSync(resolved));
     } catch { /* try next */ }
   }
   res.status(404).json({ error: 'File not found' });
@@ -416,12 +501,30 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), mode: 'vercel' });
 });
 
-// Upload Excel
+// Upload Excel / CSV
 app.post('/api/upload/excel', upload.single('excel'), (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Excel файл не загружен' });
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    if (workbook.SheetNames.length === 0) return res.status(400).json({ error: 'Excel пуст' });
+    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+    const originalName = req.file.originalname || '';
+    const ext = originalName.toLowerCase().split('.').pop() || '';
+
+    let workbook: XLSX.WorkBook;
+    if (ext === 'csv') {
+      // CSV: detect encoding (UTF-8 first, fallback to Windows-1251 for Russian Excel exports)
+      let csvText: string;
+      const buf = Buffer.from(req.file.buffer);
+      try {
+        csvText = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+      } catch {
+        csvText = new TextDecoder('windows-1251').decode(buf);
+      }
+      workbook = XLSX.read(csvText, { type: 'string' });
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    } else {
+      return res.status(400).json({ error: 'Только CSV, XLSX или XLS' });
+    }
+    if (workbook.SheetNames.length === 0) return res.status(400).json({ error: 'Файл пуст' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     if (!sheet) return res.status(400).json({ error: 'Лист не найден' });
     const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false });
@@ -437,7 +540,7 @@ app.post('/api/upload/excel', upload.single('excel'), (req, res) => {
     });
     res.json({ success: true, columns, rows, totalRows: rows.length, preview: rows.slice(0, 10) });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Ошибка Excel' });
+    res.status(500).json({ error: err.message || 'Ошибка чтения файла' });
   }
 });
 

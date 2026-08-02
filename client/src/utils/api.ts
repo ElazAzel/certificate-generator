@@ -172,3 +172,24 @@ export async function downloadGoogleFont(fontName: string): Promise<FontInfo> {
   }
   return response.json();
 }
+
+export interface SampleTemplateInfo {
+  fileName: string;
+  name: string;
+  type: 'pdf' | 'png' | 'jpg';
+  size: number;
+}
+
+export async function getSampleTemplates(): Promise<SampleTemplateInfo[]> {
+  const response = await fetch(`${BASE_URL}/sample-data/templates`);
+  if (!response.ok) throw new Error('Не удалось получить список шаблонов');
+  const data = await response.json();
+  return data.items || [];
+}
+
+export async function downloadSampleTemplate(fileName: string): Promise<File> {
+  const response = await fetch(`${BASE_URL}/sample-data/${encodeURIComponent(`templates/${fileName}`)}`);
+  if (!response.ok) throw new Error('Не удалось загрузить шаблон');
+  const blob = await response.blob();
+  return new File([blob], fileName, { type: blob.type });
+}

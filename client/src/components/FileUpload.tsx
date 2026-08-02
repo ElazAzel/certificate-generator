@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { IconExcel, IconImage, IconCheckCircle, IconError, IconSpinner, IconDownload } from './Icons';
+import { IconExcel, IconImage, IconCheckCircle, IconError, IconSpinner, IconDownload, IconTemplate } from './Icons';
+import type { SampleTemplateInfo } from '../utils/api';
 
 interface FileUploadProps {
   onExcelUpload: (file: File) => void;
@@ -10,6 +11,9 @@ interface FileUploadProps {
   templateLoading?: boolean;
   excelError?: string | null;
   templateError?: string | null;
+  sampleTemplates?: SampleTemplateInfo[];
+  onLoadSampleTemplate?: (fileName: string) => void;
+  sampleLoading?: boolean;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({
@@ -21,6 +25,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   templateLoading,
   excelError,
   templateError,
+  sampleTemplates = [],
+  onLoadSampleTemplate,
+  sampleLoading = false,
 }) => {
   const excelRef = useRef<HTMLInputElement>(null);
   const templateRef = useRef<HTMLInputElement>(null);
@@ -60,16 +67,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             {excelLoading ? <IconSpinner size={32} /> : excelError ? <IconError size={32} /> : excelName ? <IconCheckCircle size={32} /> : <IconExcel size={32} />}
           </div>
           <div className="upload-title">
-            {excelLoading ? 'Загрузка...' : excelName ? 'Таблица Excel загружена' : 'Загрузите Excel-таблицу'}
+            {excelLoading ? 'Загрузка...' : excelName ? 'Таблица загружена' : 'Загрузите таблицу участников'}
           </div>
           <div className="upload-subtitle">
-            {excelError ? excelError : excelLoading ? 'Подождите...' : excelName ? `Файл: ${excelName}` : 'Поддерживаются форматы .xlsx, .xls — перетащите файл или нажмите для выбора'}
+            {excelError ? excelError : excelLoading ? 'Подождите...' : excelName ? `Файл: ${excelName}` : 'Поддерживаются .xlsx, .xls, .csv — перетащите файл или нажмите для выбора'}
           </div>
           <input 
             type="file" 
             ref={excelRef} 
             onChange={handleExcelChange} 
-            accept=".xlsx,.xls" 
+            accept=".xlsx,.xls,.csv" 
             style={{ display: 'none' }} 
           />
         </div>
@@ -117,6 +124,34 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       {templateName && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <span className="badge badge-success">Готово</span>
+        </div>
+      )}
+
+      {sampleTemplates.length > 0 && (
+        <div>
+          <div className="section-title" style={{ marginBottom: '0.5rem' }}>
+            <IconTemplate size={12} /> Готовые шаблоны
+          </div>
+          <div className="sample-templates-list">
+            {sampleTemplates.map((t) => (
+              <button
+                key={t.fileName}
+                className="sample-template-item"
+                onClick={() => onLoadSampleTemplate?.(t.fileName)}
+                disabled={sampleLoading}
+                title={`Загрузить шаблон «${t.name}»`}
+              >
+                <span className={`sample-template-type sample-template-type-${t.type}`}>
+                  {t.type === 'pdf' ? 'PDF' : t.type === 'png' ? 'PNG' : 'JPG'}
+                </span>
+                <span className="sample-template-name">{t.name}</span>
+                <span className="sample-template-size">{(t.size / 1024).toFixed(0)} КБ</span>
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: '0.35rem' }}>
+            Кликните по шаблону, чтобы загрузить его как основу сертификата.
+          </p>
         </div>
       )}
     </div>
