@@ -154,7 +154,35 @@ body {
   flex: 1;
   overflow: hidden;
   gap: 0;
+  position: relative;
 }
+
+.workspace-toggle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 15;
+  width: 26px;
+  height: 48px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition);
+}
+
+.workspace-toggle:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.toggle-left { left: 0.5rem; }
+.toggle-right { right: 0.5rem; }
 
 .panel {
   display: flex;
@@ -1190,6 +1218,7 @@ select.input-control {
     flex: none;
   }
   .panel-left, .panel-right { display: none; }
+  .workspace-toggle { display: none; }
   .panel-body { padding: 0.75rem 1rem; }
   .panel-left { border-right: none; }
   .panel-right { border-left: none; }

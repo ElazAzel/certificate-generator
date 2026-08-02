@@ -685,6 +685,17 @@ export default function App() {
           </div>
         </aside>
 
+        {leftCollapsed && (
+          <button
+            className="workspace-toggle toggle-left"
+            onClick={() => setLeftCollapsed(false)}
+            title="Показать панель"
+            aria-label="Показать панель загрузки"
+          >
+            <IconChevronRight size={18} />
+          </button>
+        )}
+
         <main style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <TemplateEditor
             template={template}
@@ -697,8 +708,23 @@ export default function App() {
             onScaleChange={setScale}
             excelLoaded={hasExcel}
             fieldsCount={fields.length}
+            onAddField={() => addField(
+              excelData?.columns.find(c => /name|fio|full.?name|participant/i.test(c)) || excelData?.columns[0] || 'name',
+              template?.width, template?.height
+            )}
           />
         </main>
+
+        {rightCollapsed && (
+          <button
+            className="workspace-toggle toggle-right"
+            onClick={() => setRightCollapsed(false)}
+            title="Показать панель"
+            aria-label="Показать панель настроек"
+          >
+            <IconChevronLeft size={18} />
+          </button>
+        )}
 
         <aside className={`panel panel-right${rightCollapsed ? ' collapsed' : ''}`}>
           <div className="panel-header">

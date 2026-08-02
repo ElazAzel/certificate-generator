@@ -14,6 +14,7 @@ interface TemplateEditorProps {
   onScaleChange: (scale: number) => void;
   excelLoaded?: boolean;
   fieldsCount?: number;
+  onAddField?: () => void;
 }
 
 interface DragState {
@@ -89,6 +90,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   scale,
   onScaleChange,
   excelLoaded = false,
+  onAddField,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -333,6 +335,15 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           >
             По размеру экрана
           </button>
+          {onAddField && (
+            <button 
+              className="btn btn-primary editor-add-field"
+              onClick={onAddField}
+              style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', fontWeight: 600 }}
+            >
+              + Поле
+            </button>
+          )}
         </div>
 
         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
