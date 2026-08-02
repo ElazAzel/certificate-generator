@@ -1381,13 +1381,12 @@ select.input-control {
     left: 0;
     right: 0;
     bottom: calc(58px + env(safe-area-inset-bottom));
-    max-height: 46dvh;
     z-index: 58;
     background: var(--surface-solid);
     border-top: 1px solid var(--border);
-    border-radius: 16px 16px 0 0;
+    border-radius: 14px 14px 0 0;
     box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.18);
-    animation: slideInUp 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideInUp 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .mobile-inspector::before {
     content: '';
@@ -1403,10 +1402,9 @@ select.input-control {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 0.6rem 1rem;
-    border-bottom: 1px solid var(--border);
+    padding: 0.4rem 0.75rem 0.35rem;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
   }
   .mobile-inspector-title {
     display: flex;
@@ -1419,14 +1417,112 @@ select.input-control {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .mobile-inspector-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.75rem 1rem;
+  .mobile-inspector-actions {
     display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.35rem;
+    align-items: center;
+  }
+  .mobile-inspector-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.35rem 0.75rem 0.6rem;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .inspector-btn {
+    border: 1px solid var(--border);
+    background: rgba(45, 74, 122, 0.04);
+    color: var(--text);
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.4rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+  }
+  .inspector-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+  .inspector-btn:active { transform: scale(0.95); }
+  .inspector-ctl {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex: none;
+  }
+  .inspector-input {
+    width: 48px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 0.3rem;
+    text-align: center;
+    font-size: 0.8rem;
+    font-family: inherit;
+    background: var(--surface-solid);
+    color: var(--text);
+    flex: none;
+  }
+  .inspector-select {
+    height: 32px;
+    max-width: 120px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 0.3rem;
+    font-size: 0.78rem;
+    font-family: inherit;
+    background: var(--surface-solid);
+    color: var(--text);
+    flex: none;
+  }
+  .inspector-value {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-weight: 600;
+    padding: 0 0.15rem;
+  }
+  .inspector-color {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    flex: none;
+    background: var(--surface-solid);
+    cursor: pointer;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+  }
+  .inspector-color input[type="color"] {
+    position: absolute;
+    inset: -4px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .inspector-group {
+    display: flex;
+    gap: 0.15rem;
+    padding-left: 0.5rem;
+    border-left: 1px solid var(--border);
+    flex: none;
+  }
+  .inspector-btn-more {
+    color: var(--text-secondary);
   }
 }
 

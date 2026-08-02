@@ -10,13 +10,13 @@ import { ProgressBar } from './components/ProgressBar';
 import { GenerationResult } from './components/GenerationResult';
 import { GenerationHistory } from './components/GenerationHistory';
 import { StepProgressBar } from './components/StepProgressBar';
-import { IconFiles, IconField, IconHistory, IconGenerate, IconTip, IconClose, IconChevronLeft, IconChevronRight } from './components/Icons';
+import { IconFiles, IconField, IconHistory, IconGenerate, IconTip, IconClose, IconChevronLeft, IconChevronRight, IconSettings, IconList } from './components/Icons';
 
 import { useExcelData } from './hooks/useExcelData';
 import { useTemplate } from './hooks/useTemplate';
 import { useFields } from './hooks/useFields';
 
-import type { FontInfo, ExportConfig, ProjectConfig, FieldConfig, CatalogFontInfo } from './types/index';
+import type { FontInfo, ExportConfig, ProjectConfig, FieldConfig, CatalogFontInfo, HAlign, VAlign } from './types/index';
 import type { GenerateResponse, SampleTemplateInfo } from './utils/api';
 import { getFonts, uploadFont, generateCertificates, generateTestPdf, getTemplates, getFontCatalog, downloadGoogleFont, getSampleTemplates, downloadSampleTemplate } from './utils/api';
 import { generateImages } from './utils/imageExport';
@@ -92,7 +92,7 @@ export default function App() {
   const [generationResult, setGenerationResult] = useState<GenerateResponse | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
-  const [mobileSheet, setMobileSheet] = useState<'files' | 'fields' | 'export' | 'history' | null>(null);
+  const [mobileSheet, setMobileSheet] = useState<'files' | 'fields' | 'export' | 'history' | 'settings' | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
 
@@ -552,7 +552,8 @@ export default function App() {
 
   const mobileSheetTitle =
     mobileSheet === 'files' ? 'Загрузка данных'
-    : mobileSheet === 'fields' ? 'Поля и настройки'
+    : mobileSheet === 'fields' ? 'Список полей'
+    : mobileSheet === 'settings' ? 'Настройки поля'
     : mobileSheet === 'export' ? 'Экспорт'
     : 'История';
 
@@ -769,14 +770,6 @@ export default function App() {
           <span>Загрузка</span>
         </button>
         <button
-          className={`mobile-nav-btn${mobileSheet === 'fields' ? ' active' : ''}`}
-          onClick={() => setMobileSheet(s => s === 'fields' ? null : 'fields')}
-          disabled={!allResourcesReady}
-        >
-          <IconField size={20} />
-          <span>Поля</span>
-        </button>
-        <button
           className={`mobile-nav-btn${mobileSheet === 'export' ? ' active' : ''}`}
           onClick={() => setMobileSheet(s => s === 'export' ? null : 'export')}
         >
@@ -818,6 +811,7 @@ export default function App() {
           <div className="mobile-sheet-body">
             {mobileSheet === 'files' && filesTabContent}
             {mobileSheet === 'fields' && fieldsTabContent}
+            {mobileSheet === 'settings' && fieldSettingsContent}
             {mobileSheet === 'export' && exportContent}
             {mobileSheet === 'history' && historyTabContent}
           </div>
@@ -828,19 +822,146 @@ export default function App() {
         <div className="mobile-inspector">
           <div className="mobile-inspector-header">
             <span className="mobile-inspector-title">
-              <IconField size={14} />
+              <IconField size={13} />
               <span className="mobile-inspector-name">{activeField.label}</span>
             </span>
-            <button
-              className="mobile-sheet-close"
-              onClick={() => setActiveFieldId(undefined)}
-              aria-label="Закрыть настройки поля"
-            >
-              <IconClose size={16} />
-            </button>
+            <div className="mobile-inspector-actions">
+              <button
+                className="mobile-sheet-close"
+                onClick={() => setMobileSheet('fields')}
+                aria-label="Список полей"
+                title="Список полей"
+              >
+                <IconList size={16} />
+              </button>
+              <button
+                className="mobile-sheet-close"
+                onClick={() => setActiveFieldId(undefined)}
+                aria-label="Закрыть настройки поля"
+                title="Закрыть настройки"
+              >
+                <IconClose size={16} />
+              </button>
+            </div>
           </div>
-          <div className="mobile-inspector-body">
-            {fieldSettingsContent}
+          <div className="mobile-inspector-strip">
+            <div className="inspector-ctl">
+              <button
+                className="inspector-btn"
+                onClick={() => updateField(activeField.id, { fontSize: Math.max(4, Math.round(activeField.fontSize - 1)) })}
+                aria-label="Уменьшить размер шрифта"
+              >−</button>
+              <input
+                type="number"
+                className="inspector-input"
+                value={activeField.fontSize}
+                min={4}
+                max={200}
+                onChange={(e) => updateField(activeField.id, { fontSize: Number(e.target.value) > 0 ? Number(e.target.value) : 4 })}
+                aria-label="Размер шрифта"
+              />
+              <button
+                className="inspector-btn"
+                onClick={() => updateField(activeField.id, { fontSize: Math.min(200, Math.round(activeField.fontSize + 1)) })}
+                aria-label="Увеличить размер шрифта"
+              >+</button>
+            </div>
+
+            <select
+              className="inspector-select"
+              value={activeField.fontFamily}
+              onChange={(e) => updateField(activeField.id, { fontFamily: e.target.value })}
+              aria-label="Шрифт"
+            >
+              {(fonts.length > 0 ? fonts.map(f => f.fontName) : ['Arial']).map(f => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+
+            <button
+              className={`inspector-btn${activeField.bold ? ' active' : ''}`}
+              onClick={() => updateField(activeField.id, { bold: !activeField.bold })}
+              title="Полужирный"
+              style={{ fontWeight: 'bold' }}
+            >Ж</button>
+            <button
+              className={`inspector-btn${activeField.italic ? ' active' : ''}`}
+              onClick={() => updateField(activeField.id, { italic: !activeField.italic })}
+              title="Курсив"
+              style={{ fontStyle: 'italic' }}
+            >К</button>
+
+            <label className="inspector-color" title="Цвет текста">
+              <input
+                type="color"
+                value={activeField.fontColor}
+                onChange={(e) => updateField(activeField.id, { fontColor: e.target.value })}
+                aria-label="Цвет текста"
+              />
+            </label>
+
+            <div className="inspector-group" role="group" aria-label="Выравнивание по горизонтали">
+              {(['left', 'center', 'right'] as HAlign[]).map(a => (
+                <button
+                  key={a}
+                  className={`inspector-btn${activeField.align === a ? ' active' : ''}`}
+                  onClick={() => updateField(activeField.id, { align: a })}
+                  title={a === 'left' ? 'По левому краю' : a === 'center' ? 'По центру' : 'По правому краю'}
+                >
+                  {a === 'left' ? '\u2190' : a === 'center' ? '\u2194' : '\u2192'}
+                </button>
+              ))}
+            </div>
+
+            <div className="inspector-group" role="group" aria-label="Выравнивание по вертикали">
+              {(['top', 'middle', 'bottom'] as VAlign[]).map(v => (
+                <button
+                  key={v}
+                  className={`inspector-btn${activeField.verticalAlign === v ? ' active' : ''}`}
+                  onClick={() => updateField(activeField.id, { verticalAlign: v })}
+                  title={v === 'top' ? 'Сверху' : v === 'middle' ? 'По центру' : 'Снизу'}
+                >
+                  {v === 'top' ? '\u2191' : v === 'middle' ? '\u2195' : '\u2193'}
+                </button>
+              ))}
+            </div>
+
+            <div className="inspector-ctl">
+              <button
+                className="inspector-btn"
+                onClick={() => updateField(activeField.id, { letterSpacing: Math.max(0, Math.round((activeField.letterSpacing || 0) * 2 - 1) / 2) })}
+                aria-label="Уменьшить межбуквенный интервал"
+              >−</button>
+              <span className="inspector-value" title="Межбуквенный интервал">Инт {activeField.letterSpacing || 0}</span>
+              <button
+                className="inspector-btn"
+                onClick={() => updateField(activeField.id, { letterSpacing: Math.min(20, Math.round((activeField.letterSpacing || 0) * 2 + 1) / 2) })}
+                aria-label="Увеличить межбуквенный интервал"
+              >+</button>
+            </div>
+
+            <div className="inspector-ctl">
+              <button
+                className="inspector-btn"
+                onClick={() => updateField(activeField.id, { rotation: Math.max(-360, Math.round((activeField.rotation || 0) - 5)) })}
+                aria-label="Повернуть против часовой стрелки"
+              >−</button>
+              <span className="inspector-value" title="Поворот">Пов {activeField.rotation || 0}°</span>
+              <button
+                className="inspector-btn"
+                onClick={() => updateField(activeField.id, { rotation: Math.min(360, Math.round((activeField.rotation || 0) + 5)) })}
+                aria-label="Повернуть по часовой стрелке"
+              >+</button>
+            </div>
+
+            <button
+              className="inspector-btn inspector-btn-more"
+              onClick={() => setMobileSheet('settings')}
+              title="Все настройки"
+              aria-label="Все настройки поля"
+            >
+              <IconSettings size={16} />
+            </button>
           </div>
         </div>
       )}
