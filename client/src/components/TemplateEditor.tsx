@@ -356,7 +356,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       <div
         className="editor-canvas-container"
         onPointerDown={(e) => {
-          if (e.target === e.currentTarget) onBackgroundClick?.();
+          if ((e.target as HTMLElement).closest('.visual-field')) return;
+          onBackgroundClick?.();
         }}
       >
         <div 
