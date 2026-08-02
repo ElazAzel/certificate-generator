@@ -15,6 +15,7 @@ interface TemplateEditorProps {
   excelLoaded?: boolean;
   fieldsCount?: number;
   onAddField?: () => void;
+  onBackgroundClick?: () => void;
 }
 
 interface DragState {
@@ -91,6 +92,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   onScaleChange,
   excelLoaded = false,
   onAddField,
+  onBackgroundClick,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -351,7 +353,12 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         </div>
       </div>
 
-      <div className="editor-canvas-container">
+      <div
+        className="editor-canvas-container"
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) onBackgroundClick?.();
+        }}
+      >
         <div 
           className="canvas-wrapper" 
           ref={canvasRef}

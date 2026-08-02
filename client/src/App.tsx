@@ -391,7 +391,11 @@ export default function App() {
     setLeftTab('fields');
     if (rightCollapsed) setRightCollapsed(false);
     const isMobileViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
-    if (!isMobileViewport) setMobileSheet('fields');
+    if (isMobileViewport) {
+      setMobileSheet(null);
+    } else {
+      setMobileSheet('fields');
+    }
   };
 
   const hasExcel = !!excelData;
@@ -476,7 +480,7 @@ export default function App() {
     />
   );
 
-  const settingsContent = (
+  const fieldSettingsContent = (
     <>
       <FieldSettingsPanel
         field={activeField}
@@ -497,6 +501,12 @@ export default function App() {
           </ul>
         </div>
       )}
+    </>
+  );
+
+  const settingsContent = (
+    <>
+      {fieldSettingsContent}
 
       {!activeField && allResourcesReady && (
         <div className="tip-card" style={{ marginTop: '0.5rem' }}>
@@ -713,6 +723,7 @@ export default function App() {
               excelData?.columns.find(c => /name|fio|full.?name|participant/i.test(c)) || excelData?.columns[0] || 'name',
               template?.width, template?.height
             )}
+            onBackgroundClick={() => setActiveFieldId(undefined)}
           />
         </main>
 
@@ -806,15 +817,30 @@ export default function App() {
           </div>
           <div className="mobile-sheet-body">
             {mobileSheet === 'files' && filesTabContent}
-            {mobileSheet === 'fields' && (
-              <>
-                {fieldsTabContent}
-                <div className="mobile-sheet-section-title">Настройки выбранного поля</div>
-                {settingsContent}
-              </>
-            )}
+            {mobileSheet === 'fields' && fieldsTabContent}
             {mobileSheet === 'export' && exportContent}
             {mobileSheet === 'history' && historyTabContent}
+          </div>
+        </div>
+      )}
+
+      {activeField && (
+        <div className="mobile-inspector">
+          <div className="mobile-inspector-header">
+            <span className="mobile-inspector-title">
+              <IconField size={14} />
+              <span className="mobile-inspector-name">{activeField.label}</span>
+            </span>
+            <button
+              className="mobile-sheet-close"
+              onClick={() => setActiveFieldId(undefined)}
+              aria-label="Закрыть настройки поля"
+            >
+              <IconClose size={16} />
+            </button>
+          </div>
+          <div className="mobile-inspector-body">
+            {fieldSettingsContent}
           </div>
         </div>
       )}
