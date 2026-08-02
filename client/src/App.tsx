@@ -844,114 +844,116 @@ export default function App() {
               </button>
             </div>
           </div>
-          <div className="mobile-inspector-strip">
-            <div className="inspector-ctl">
-              <button
-                className="inspector-btn"
-                onClick={() => updateField(activeField.id, { fontSize: Math.max(4, Math.round(activeField.fontSize - 1)) })}
-                aria-label="Уменьшить размер шрифта"
-              >−</button>
-              <input
-                type="number"
-                className="inspector-input"
-                value={activeField.fontSize}
-                min={4}
-                max={200}
-                onChange={(e) => updateField(activeField.id, { fontSize: Number(e.target.value) > 0 ? Number(e.target.value) : 4 })}
-                aria-label="Размер шрифта"
-              />
-              <button
-                className="inspector-btn"
-                onClick={() => updateField(activeField.id, { fontSize: Math.min(200, Math.round(activeField.fontSize + 1)) })}
-                aria-label="Увеличить размер шрифта"
-              >+</button>
-            </div>
-
-            <select
-              className="inspector-select"
-              value={activeField.fontFamily}
-              onChange={(e) => updateField(activeField.id, { fontFamily: e.target.value })}
-              aria-label="Шрифт"
-            >
-              {(fonts.length > 0 ? fonts.map(f => f.fontName) : ['Arial']).map(f => (
-                <option key={f} value={f}>{f}</option>
-              ))}
-            </select>
-
-            <button
-              className={`inspector-btn${activeField.bold ? ' active' : ''}`}
-              onClick={() => updateField(activeField.id, { bold: !activeField.bold })}
-              title="Полужирный"
-              style={{ fontWeight: 'bold' }}
-            >Ж</button>
-            <button
-              className={`inspector-btn${activeField.italic ? ' active' : ''}`}
-              onClick={() => updateField(activeField.id, { italic: !activeField.italic })}
-              title="Курсив"
-              style={{ fontStyle: 'italic' }}
-            >К</button>
-
-            <label className="inspector-color" title="Цвет текста">
-              <input
-                type="color"
-                value={activeField.fontColor}
-                onChange={(e) => updateField(activeField.id, { fontColor: e.target.value })}
-                aria-label="Цвет текста"
-              />
-            </label>
-
-            <div className="inspector-group" role="group" aria-label="Выравнивание по горизонтали">
-              {(['left', 'center', 'right'] as HAlign[]).map(a => (
+          <div className="mobile-inspector-strip-wrap">
+            <div className="mobile-inspector-strip">
+              <div className="inspector-ctl">
                 <button
-                  key={a}
-                  className={`inspector-btn${activeField.align === a ? ' active' : ''}`}
-                  onClick={() => updateField(activeField.id, { align: a })}
-                  title={a === 'left' ? 'По левому краю' : a === 'center' ? 'По центру' : 'По правому краю'}
-                >
-                  {a === 'left' ? '\u2190' : a === 'center' ? '\u2194' : '\u2192'}
-                </button>
-              ))}
-            </div>
-
-            <div className="inspector-group" role="group" aria-label="Выравнивание по вертикали">
-              {(['top', 'middle', 'bottom'] as VAlign[]).map(v => (
+                  className="inspector-btn"
+                  onClick={() => updateField(activeField.id, { fontSize: Math.max(4, Math.round(activeField.fontSize - 1)) })}
+                  aria-label="Уменьшить размер шрифта"
+                >−</button>
+                <input
+                  type="number"
+                  className="inspector-input"
+                  value={activeField.fontSize}
+                  min={4}
+                  max={200}
+                  onChange={(e) => updateField(activeField.id, { fontSize: Number(e.target.value) > 0 ? Number(e.target.value) : 4 })}
+                  aria-label="Размер шрифта"
+                />
                 <button
-                  key={v}
-                  className={`inspector-btn${activeField.verticalAlign === v ? ' active' : ''}`}
-                  onClick={() => updateField(activeField.id, { verticalAlign: v })}
-                  title={v === 'top' ? 'Сверху' : v === 'middle' ? 'По центру' : 'Снизу'}
-                >
-                  {v === 'top' ? '\u2191' : v === 'middle' ? '\u2195' : '\u2193'}
-                </button>
-              ))}
-            </div>
+                  className="inspector-btn"
+                  onClick={() => updateField(activeField.id, { fontSize: Math.min(200, Math.round(activeField.fontSize + 1)) })}
+                  aria-label="Увеличить размер шрифта"
+                >+</button>
+              </div>
 
-            <div className="inspector-ctl">
-              <button
-                className="inspector-btn"
-                onClick={() => updateField(activeField.id, { letterSpacing: Math.max(0, Math.round((activeField.letterSpacing || 0) * 2 - 1) / 2) })}
-                aria-label="Уменьшить межбуквенный интервал"
-              >−</button>
-              <span className="inspector-value" title="Межбуквенный интервал">Инт {activeField.letterSpacing || 0}</span>
-              <button
-                className="inspector-btn"
-                onClick={() => updateField(activeField.id, { letterSpacing: Math.min(20, Math.round((activeField.letterSpacing || 0) * 2 + 1) / 2) })}
-                aria-label="Увеличить межбуквенный интервал"
-              >+</button>
-            </div>
+              <select
+                className="inspector-select"
+                value={activeField.fontFamily}
+                onChange={(e) => updateField(activeField.id, { fontFamily: e.target.value })}
+                aria-label="Шрифт"
+              >
+                {(fonts.length > 0 ? fonts.map(f => f.fontName) : ['Arial']).map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
 
-            <div className="inspector-ctl">
               <button
-                className="inspector-btn"
-                onClick={() => updateField(activeField.id, { rotation: Math.max(-360, Math.round((activeField.rotation || 0) - 5)) })}
-                aria-label="Повернуть против часовой стрелки"
-              >−</button>
-              <span className="inspector-value" title="Поворот">Пов {activeField.rotation || 0}°</span>
+                className={`inspector-btn${activeField.bold ? ' active' : ''}`}
+                onClick={() => updateField(activeField.id, { bold: !activeField.bold })}
+                title="Полужирный"
+                style={{ fontWeight: 'bold' }}
+              >Ж</button>
               <button
-                className="inspector-btn"
-                onClick={() => updateField(activeField.id, { rotation: Math.min(360, Math.round((activeField.rotation || 0) + 5)) })}
-                aria-label="Повернуть по часовой стрелке"
-              >+</button>
+                className={`inspector-btn${activeField.italic ? ' active' : ''}`}
+                onClick={() => updateField(activeField.id, { italic: !activeField.italic })}
+                title="Курсив"
+                style={{ fontStyle: 'italic' }}
+              >К</button>
+
+              <label className="inspector-color" title="Цвет текста">
+                <input
+                  type="color"
+                  value={activeField.fontColor}
+                  onChange={(e) => updateField(activeField.id, { fontColor: e.target.value })}
+                  aria-label="Цвет текста"
+                />
+              </label>
+
+              <div className="inspector-group" role="group" aria-label="Выравнивание по горизонтали">
+                {(['left', 'center', 'right'] as HAlign[]).map(a => (
+                  <button
+                    key={a}
+                    className={`inspector-btn${activeField.align === a ? ' active' : ''}`}
+                    onClick={() => updateField(activeField.id, { align: a })}
+                    title={a === 'left' ? 'По левому краю' : a === 'center' ? 'По центру' : 'По правому краю'}
+                  >
+                    {a === 'left' ? '\u2190' : a === 'center' ? '\u2194' : '\u2192'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="inspector-group" role="group" aria-label="Выравнивание по вертикали">
+                {(['top', 'middle', 'bottom'] as VAlign[]).map(v => (
+                  <button
+                    key={v}
+                    className={`inspector-btn${activeField.verticalAlign === v ? ' active' : ''}`}
+                    onClick={() => updateField(activeField.id, { verticalAlign: v })}
+                    title={v === 'top' ? 'Сверху' : v === 'middle' ? 'По центру' : 'Снизу'}
+                  >
+                    {v === 'top' ? '\u2191' : v === 'middle' ? '\u2195' : '\u2193'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="inspector-ctl">
+                <button
+                  className="inspector-btn"
+                  onClick={() => updateField(activeField.id, { letterSpacing: Math.max(0, Math.round((activeField.letterSpacing || 0) * 2 - 1) / 2) })}
+                  aria-label="Уменьшить межбуквенный интервал"
+                >−</button>
+                <span className="inspector-value" title="Межбуквенный интервал">Инт {activeField.letterSpacing || 0}</span>
+                <button
+                  className="inspector-btn"
+                  onClick={() => updateField(activeField.id, { letterSpacing: Math.min(20, Math.round((activeField.letterSpacing || 0) * 2 + 1) / 2) })}
+                  aria-label="Увеличить межбуквенный интервал"
+                >+</button>
+              </div>
+
+              <div className="inspector-ctl">
+                <button
+                  className="inspector-btn"
+                  onClick={() => updateField(activeField.id, { rotation: Math.max(-360, Math.round((activeField.rotation || 0) - 5)) })}
+                  aria-label="Повернуть против часовой стрелки"
+                >−</button>
+                <span className="inspector-value" title="Поворот">Пов {activeField.rotation || 0}°</span>
+                <button
+                  className="inspector-btn"
+                  onClick={() => updateField(activeField.id, { rotation: Math.min(360, Math.round((activeField.rotation || 0) + 5)) })}
+                  aria-label="Повернуть по часовой стрелке"
+                >+</button>
+              </div>
             </div>
 
             <button

@@ -1422,14 +1422,32 @@ select.input-control {
     gap: 0.35rem;
     align-items: center;
   }
+  .mobile-inspector-strip-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
   .mobile-inspector-strip {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     overflow-x: auto;
-    padding: 0.35rem 0.75rem 0.6rem;
+    padding: 0.35rem 3rem 0.6rem 0.75rem;
+    flex: 1;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
+  }
+  .mobile-inspector-strip-wrap .inspector-btn-more {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+    width: 34px;
+    height: 34px;
+    background: var(--surface-solid);
+    box-shadow: -4px 0 12px rgba(15, 23, 42, 0.15), var(--shadow-sm);
+    color: var(--text-secondary);
   }
   .inspector-btn {
     border: 1px solid var(--border);
