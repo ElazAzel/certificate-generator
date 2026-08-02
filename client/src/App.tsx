@@ -389,8 +389,9 @@ export default function App() {
   const handleSelectField = (id: string) => {
     setActiveFieldId(id);
     setLeftTab('fields');
-    setMobileSheet('fields');
     if (rightCollapsed) setRightCollapsed(false);
+    const isMobileViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
+    if (!isMobileViewport) setMobileSheet('fields');
   };
 
   const hasExcel = !!excelData;

@@ -645,6 +645,13 @@ body {
 .resize-handle-ne { right: -4px; top: -4px; cursor: ne-resize; }
 .resize-handle-nw { left: -4px; top: -4px; cursor: nw-resize; }
 
+@media (max-width: 900px) {
+  .resize-handle { width: 14px; height: 14px; }
+  .resize-handle-se { right: -7px; bottom: -7px; }
+  .resize-handle-sw { left: -7px; bottom: -7px; }
+  .resize-handle-ne { right: -7px; top: -7px; }
+  .resize-handle-nw { left: -7px; top: -7px; }
+}
 /* ===== FORM CONTROLS ===== */
 .form-group {
   display: flex;
